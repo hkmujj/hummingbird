@@ -1,0 +1,195 @@
+head	1.0;
+access;
+symbols;
+locks
+	administrator:1.0
+                                                                                                                                                                                                        ; strict;
+comment	@# @;
+
+
+1.0
+date	2011.11.24.06.33.14;	author administrator;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.0
+log
+@Initial revision
+@
+text
+@﻿# -*- coding: utf-8 -*-
+# $Header: D:\\RCS\\D\\python_study\\cherrypy\\forum\\__init__.py,v 1.0 2011-10-08 22:54:04+08 administrator Exp administrator $
+import sqlite3, os, chardet, MySQL, cherrypy, cgi, sys, xlrd, time, datetime, traceback, my_tools, dbapi
+import dbapi
+from HTMLTags import TR, TD, INPUT
+name = '单表通用查询'
+
+def __init__():
+	'''本目录的初始化函数, 返回一个字典,用以更新外部globals变量'''
+
+	result_dict = {}
+	filename = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'package_sql\\数据字典20111101.xls')
+	filename = filename.decode('utf-8').encode('gb2312')
+	book = xlrd.open_workbook(filename)
+	s1 = book.sheet_by_name(u'数据字典')
+	cols = s1.col_values(0)[0:]
+	# 取得主题域列表
+	result_dict['sub_list'] = reduce(lambda a,b: b in a and a or a+[b], [[]]+['%s' % i for i in cols if i])
+	sub_l = map(lambda x: cols.index(x), result_dict['sub_list'])
+	sub_r = sub_l[1:]
+	sub_r.append(9999)
+	# 主题域所占行数
+	result_dict['sub_list_index'] = dict(zip(result_dict['sub_list'],zip(sub_l, sub_r)))
+	result_dict['tbl_names_c'] = s1.col_values(1)[0:]
+	result_dict['tbl_names'] = s1.col_values(2)[0:]
+	result_dict['add_area'] = (u'营销客户域',u'用户域',u'话单')
+	return result_dict
+
+globals().update(__init__())
+
+def header(forum_url="."):
+	'''论坛页眉,公用先调用的函数, 可以只在此处检查是否登录,而不用对每一个需要发布的函数都检查登录情况'''
+
+	#yield '%s' % cgi.escape(str(ami.connect_pool))
+	yield '<html><head><title>数据集市</title><script language="JavaScript" src="/static_files/calendar.js"></script><link rel="Stylesheet" href="/static_files/k_base.css"></link></head><body>\n'
+	yield '<a href="%s/..">上级</a> | <a href="%s">返回首页</a>' % (forum_url, forum_url)
+	for col in sub_list[1:]:
+		if col:
+			yield ' | <a href="%s/%s">%s</a>' % (forum_url, col.encode('utf-8'), col.encode('utf-8'))
+	yield '<hr />'
+
+def footer():
+	'''论坛页脚'''
+
+	yield '\n</body></html>'
+
+def index():
+	'''论坛首页'''
+
+	yield ''.join(header())
+	yield '''本页是根据"重庆数据集市数据字典0.7.xls"的内容,自动生成的单表统一查询界面.可以选择指定表后,按某一字段进行查询并显示结果.
+	1.对于表名的决定.如果有AREA,以及按PPT中说明的需要区分公司id的,则在表名后追加分公司id.
+	2.如果是月表,或者以_YYYYMM结尾的,则追加上一个月作为后缀.
+	3.如果是日表,或者以_YYYYMMDD结尾的,则追加前2天的日期作为后缀.
+	4.查询时可以简单的模糊查询,在查询内容的前面或者后面中'%',则会转为用like查询.
+	5.查询结果限制在100条以内,并显示总数.如果显示100条,有可能还有更多的符合条件的记录.
+	6.查询结果提供导出,为csv或电子表格(未完工), 并选择是全部导入,还是导出本页.
+	7.征求:查询字段的选择,是显示中文还是英文,还是两者都显示?
+	8.征求:月表或日表不存在时,是否再往前推一个月或一天?
+	9.重要:如何显示分公司选择界面,并创建分公司的数据库连接? 总连接不可能太多,考虑服务器端随能力.初步想法是二级字典,每线程保留3个边接.取边接时,若本线程无本分公司的连接,则新建一个.并将最早的连接关闭和踢出.(字典如何排序?)
+	'''.replace('\n', '<br />\n')
+	yield ''.join(footer())
+index.exposed = True
+
+def dis_sub(*k, **kw):
+	'''显示每个主题域下面的表清单,并提供到表清单的链接'''
+
+	yield ''.join(header('.'*len(k)))
+	k0 = k[0].decode('utf-8')
+	yield '<table border="1" style="display:inline;float:left;border:solid 10px;margin:10px">'
+	yield '<tr><th>表实体中文名</th><th>表实体英文名</th>'
+	# 在index里,yield的内容好象要是unicode；但在其它函数里, yield 的要求是utf-8,可能因为index里以'.'.join()的形式调用.
+	tmp_k0 = tbl_names_c.__getslice__(*sub_list_index[k0])
+	for idx, col in enumerate(tmp_k0):
+		if col<>tmp_k0[idx-1]:
+			yield '<tr><td><a href="%s/%s/%s">%s</td>' % (cherrypy.url(), "."*len(k), col.encode('utf-8'), col.encode('utf-8'))
+			
+			yield '<td>%s</td>' % tbl_names[idx+sub_list_index[k0][0]].encode('utf-8')
+			pass
+	yield '</table>'
+	if len(k) >= 2 and k[1].decode('utf-8') in tbl_names_c:
+		yield ''.join(dis_table(*k, **kw))
+	yield ''.join(footer())
+
+def dis_table(*k ,**kw):
+	# 显示具体的表名的查询界面
+	# 要点: 1.根据表名索引,反查其主题域, 已经初始定义了哪些主题域的表名需要加分公司id标识.
+	# 根据表名中是否含"日表","月表", 以确定替YYYYMMDD等为对应日期, 或以是否以YYYYMMDD结尾来判断是月表或日表.
+	# 月表应以上个月, 或上个月的最后一天为准.日表以两天以前为准.
+	#yield k[1]
+	fengongshi = cherrypy.session.get('fengongshi','33')
+	index = tbl_names_c.index(k[1].decode('utf-8'))
+	table_name = tbl_names[index]
+	#yield 'tbl_name'
+	#yield table_name.encode('utf-8')
+	t_name = [table_name]
+	if k[0].decode('utf-8') in add_area:
+		if t_name[0].find('AREA')<>-1:
+			t_name[0] = t_name[0].replace(u'AREA',fengongshi)
+			table_name = table_name.replace(u'AREA',fengongshi)
+		elif t_name[0].find('XX')<>-1:
+			t_name[0] = t_name[0].replace(u'XX',fengongshi)
+			table_name = table_name.replace(u'XX',fengongshi)
+		else:
+			t_name.append(fengongshi)
+	if table_name.endswith('YYYYMMDD') or tbl_names_c[index].find(u'日表')<>-1:
+		# 是日表
+		t_name[0] = table_name.partition('_YYYY')[0]
+		d1 = datetime.datetime.now()
+		t_name.append((d1+datetime.timedelta(days=-2)).strftime('%Y%m%d'))
+	elif table_name.endswith('YYYYMM'):
+		# 月表
+		t_name[0] = table_name[:-7]
+		t_name.append(int((datetime.datetime.now()+datetime.timedelta(days=-10)).strftime('%Y%m')))
+		if t_name[-1]%100:
+			t_name[-1] -= 1 
+		else:	t_name[-1] -= 89
+		t_name[-1] = str(t_name[-1])
+	# 用户域中,除用户信息表以外,其它表也不区分分公司id
+	if k[0] == u'用户域'.encode('utf-8'):
+		#yield '用户域中只有用户信息表才区分分公司id'
+		if not k[1].startswith(u'用户信息'.encode('utf-8')):
+			try:
+				del t_name[1]
+			except:
+				pass
+	yield '当前查询表名:'
+	yield '_'.join(t_name).encode('utf-8','ignore')
+	yield '<br />'
+	kw_n = my_tools.query_dict()
+	kw_n.update(kw)
+	kw_query = {}
+	if kw_n['col_name']:
+		kw_query[kw_n['col_name']]=kw_n['col_value']
+	try:
+		recs = dbapi.Table(_table='_'.join(t_name), **kw_query)
+	except:
+		yield traceback.format_exc().replace('<', '&lt;').replace(' ','&nbsp;').replace('\n','<br />')
+		return
+	yield '<form>'
+	yield '%s' % INPUT(recs._columns,name=['col_name']*len(recs._columns), value=recs._columns, type="radio", checked=kw_n['col_name'])
+	yield '<br />'
+	yield '上面选择查询字段,右边输入查询值.输入"%"可以查看随机前100条记录'
+	tmp_s  =  '%s' % INPUT(type="text", name="col_value", value="%(col_value)s")
+	yield tmp_s  % kw_n
+	yield '<input type="submit">'
+	yield '<form><br />'
+	yield '共有%s笔记录' % len(recs)
+	yield '<table border=1>'
+	yield '%s' % TR(TD(recs._columns))
+	for rec in recs:
+		yield '%s' % TR(TD(rec._data))
+	yield '</table>'
+
+def default(*k, **kw):
+	'''默认处理方法'''
+
+	if len(k) >= 1 and k[0].decode('utf-8') in sub_list:
+		yield ''.join(dis_sub(*k, **kw))
+		# 显示每个主题域下面的表名菜单
+	else:
+		yield '路径不存在!'
+		yield '%s' % str(k)
+		yield '%s' % chardet.detect(k[0]) #.decode('gb2312')
+default.exposed = True
+
+# $Log: __init__.py,v $
+# Revision 1.0  2011-10-08 22:54:04+08  administrator
+# Initial revision
+#
+@

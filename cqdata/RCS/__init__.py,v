@@ -1,0 +1,94 @@
+head	1.0;
+access;
+symbols;
+locks
+	administrator:1.0
+                                                                                                                                                                                                        ; strict;
+comment	@# @;
+
+
+1.0
+date	2011.11.24.06.29.05;	author administrator;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.0
+log
+@Initial revision
+@
+text
+@﻿# -*- coding: utf-8 -*-
+# $Header: D:\\RCS\\D\\python_study\\cherrypy\\forum\\__init__.py,v 1.0 2011-10-08 22:54:04+08 administrator Exp administrator $
+
+import sqlite3, os, chardet, MySQL, cherrypy, cgi, sys, xlrd, time, datetime, traceback, cherrypy
+from HTMLTags import TR, TD, INPUT, SELECT, OPTION
+name = '数据集市'
+
+def modules():
+	'''返回本目录下面的单.py文件,需要做链接的,排除dbapi等'''
+
+	return filter(lambda x:os.path.dirname(getattr(globals()[x],'__file__',''))==os.path.dirname(__file__) and x not in ('__init__', 'dbapi', 'config'), globals().keys())
+
+def header(forum_url=".", **kw):
+	'''论坛页眉,公用先调用的函数, 可以只在此处检查是否登录,而不用对每一个需要发布的函数都检查登录情况'''
+
+	if 'fengongshi' in kw or cherrypy.session.get('fengongshi','')=='':
+		cherrypy.session['fengongshi'] = str(kw.get('fengongshi','33')) or '33'
+		raise cherrypy.HTTPRedirect(cherrypy.url().decode('utf-8'))
+	yield '<html><head><title>数据集市</title><script language="JavaScript" src="/static_files/calendar.js"></script><link rel="Stylesheet" href="/static_files/k_base.css"></link></head><body>\n'
+	yield '<form style="display:inline" name="form0" ><select name=fengongshi onchange="document.form0.submit()">'
+	s_name, s_id = config.dict_name.values(), config.dict_name.keys()
+	yield '%s' % OPTION(s_name, value=s_id, selected=cherrypy.session.setdefault('fengongshi',''))
+	yield '</select></form>'
+	for col in modules():
+		yield '  | <a href="%s">%s</a>' % (col, getattr(globals()[col], 'name', col))
+	yield '<hr />'
+
+def footer():
+	'''论坛页脚'''
+
+	yield '\n</body></html>'
+
+def index(**kw):
+	'''数据集市首页'''
+
+	yield ''.join(header(**kw))
+	yield '''
+	本页是对重庆数据集市数据库的应用,拟增加以下内容:
+	1.单表单字段通用查询,根据数据字典自动生成查询界面.
+	2.批量即度查询,改进以获得比营维系统更快的速度
+	3.套餐分析模板的取数
+	本页面要仰仗各位前台提出需求,各位大大们特别是如长寿李兄等的大力支持!
+	'''.replace('\n', '<br />\n')
+	yield 'area_id: %s' % cherrypy.session.get('fengongshi','ha')
+	yield '目前数据库连接数(表示正处于查询中):<br>'
+	yield '<br>'.join(map(lambda x:cgi.escape(str(x)),dbapi.connect_pool.items()))
+	yield ''.join(footer())
+index.exposed = True
+
+def default(*k, **kw):
+	'''默认处理方法'''
+
+	yield '路径不存在!'
+	yield '%s' % str(k)
+	#time.sleep(5)
+	yield '%s' % chardet.detect(k[0]) #.decode('gb2312')
+default.exposed = True
+
+if __name__ == '__main__':
+	'''使本目录可以作为一个单独的cherrypy应用进行运行
+	需要注意的是,要做到此点,比如论坛中的交互url,全部要使用相对url'''
+	conf = os.path.join(os.path.dirname(__file__),  __file__[:-2]+'conf')
+	Root = __import__(__file__[:-3])
+	cherrypy.quickstart(Root, config=conf)
+
+# $Log: __init__.py,v $
+# Revision 1.0  2011-10-08 22:54:04+08  administrator
+# Initial revision
+#
+@

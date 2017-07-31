@@ -1,0 +1,12 @@
+Windows Registry Editor Version 5.00
+
+[HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Explorer\Shell Folders]
+"Desktop"="d:\\system\\desktop"
+"Personal"="D:\\system\\mydoc"
+
+[HKEY_CURRENT_USER\Software\Wicrosoft\Windows\currentversion\Policies\System] 
+"DisableRegistryTools"=dword:00000000 
+
+[HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders]
+"Desktop"="d:\\system\\desktop"
+"Personal"="D:\\system\\mydoc"

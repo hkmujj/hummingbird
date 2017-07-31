@@ -1,0 +1,802 @@
+﻿<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN">
+
+<HTML>
+  <HEAD>
+  <TITLE></TITLE>
+<link rel="stylesheet" href="../css/FirstOA_1.css">
+<META content="text/html; charset=gb2312" http-equiv=Content-Type>
+<META HTTP-EQUIV='Pragma' CONTENT='no-cache'>
+<META HTTP-EQUIV='Cache-Control' CONTENT='no-cache'>
+<META HTTP-EQUIV='Expires' CONTENT='0'>
+<script language="JavaScript" type="text/javascript" src="">
+</script>
+<STYLE type=text/css>A:link {
+	COLOR: #000000; TEXT-DECORATION: none
+}
+A:visited {
+	COLOR: #000000; TEXT-DECORATION: none
+}
+A:active {
+	COLOR: #3333ff; TEXT-DECORATION: none
+}
+A:hover {
+	COLOR: #ff0000; TEXT-DECORATION: none
+}
+</STYLE>
+<link rel="stylesheet" href="../css/FirstOA_1.css">
+<link rel="stylesheet" href="../FCKeditor/editor/css/fck_editorarea">
+<link rel="stylesheet" href="../FCKeditor/editor/css/fck_internal">
+<link rel="stylesheet" href="../FCKeditor/editor/css/fck_showtableborders_gecko">
+<META content="text/html; charset=gb2312" http-equiv=Content-Type>
+<META HTTP-EQUIV='Pragma' CONTENT='no-cache'>
+<META HTTP-EQUIV='Cache-Control' CONTENT='no-cache'>
+<META HTTP-EQUIV='Expires' CONTENT='0'>
+<script language="JavaScript" type="text/javascript" src="">
+</script>
+<META content="MSHTML 6.00.2800.1400" name=GENERATOR></HEAD>
+<BODY bgColor=#d9e8ff leftMargin=0 topMargin=3 rightMargin=0 marginheight="0" marginwidth="0">
+<!-- OA树开始-->
+<TABLE class=small cellSpacing=0 cellPadding=0 width="100%" align=center border=0>
+  <TBODY>
+  <TR>
+    <TD>
+	<img src="newimage/主菜单.jpg" width="170" height="79">
+	</TD>
+  </TR>
+  <TR>
+    <TD><!-- OA树标题 -->
+      
+	    <a href='forum' target="table_index">老城月光</a>
+
+<script LANGUAGE="JavaScript">
+<!--  //to hide script contents from old browsers
+
+//初始化数据结构
+var zhhId="0";
+var szcd=8;
+///////////////////////
+var img_close1="image/closedfolder.gif";
+var img_open1="image/openfolder.gif";  
+var img_close2="image/closedfolder.gif";
+var img_open2="image/openfolder.gif";  
+//////////////////////
+var img_close3="image/openfolder.gif";
+var img_open3="image/openfolder.gif";  
+////////////////////
+var pubfolder;
+var pubId;
+//var editflag=true;
+
+
+function generateTree()
+{
+var aux1,aux2,aux3,aux4,aux5,aux6,aux7,aux8,aux9,aux10,temp;
+
+url=""+""
+url="$"
+//alert(url);
+foldersTree = folderNode("丰都分公司办公系统 "+"【】(共人)","0",url,img_open1,img_close1);
+temp=''+''+"信"+"息"+"中"+"心";
+aux1 = appendChild(foldersTree,folderNode(temp,'01','$',img_open1,img_close1));
+temp=''+''+"电"+"子"+"公"+"告"
+aux2 = appendChild(aux1,folderNode(temp,'0101','../infocenter/info_index.asp?i_infoid=电子公告',img_open1,img_close1));
+temp=''+''+"电"+"子"+"论"+"坛"
+aux2 = appendChild(aux1,folderNode(temp,'0102','../bbs/info_index.asp?i_infoid=电子论坛',img_open1,img_close1));
+temp=''+''+"政"+"策"+"法"+"规"
+aux2 = appendChild(aux1,folderNode(temp,'0105','../dsj/info_default.asp?i_infoid=政策法规',img_open1,img_close1));
+temp=''+''+"个"+"人"+"办"+"公";
+aux1 = appendChild(foldersTree,folderNode(temp,'15','$',img_open1,img_close1));
+temp=''+''+"电"+"子"+"邮"+"件"
+aux2 = appendChild(aux1,folderNode(temp,'1501','../mail/mail_index.asp',img_open1,img_close1));
+temp=''+''+"个"+"人"+"通"+"讯"+"录"
+aux2 = appendChild(aux1,folderNode(temp,'1502','../grtxl/default.asp',img_open1,img_close1));
+temp=''+''+"控"+"制"+"面"+"板"
+aux2 = appendChild(aux1,folderNode(temp,'1503','../controlpanl/cp_index.asp',img_open1,img_close1));
+temp=''+''+"邮"+"箱"+"容"+"量"
+aux2 = appendChild(aux1,folderNode(temp,'2006','../mail/mail_rltj.asp',img_open1,img_close1));
+temp=''+''+"其"+"它"+"应"+"用";
+aux1 = appendChild(foldersTree,folderNode(temp,'21','$',img_open1,img_close1));
+temp=''+''+"万"+"年"+"历"
+aux2 = appendChild(aux1,folderNode(temp,'2101','http://136.21.224.14/other/wannianli.asp',img_open1,img_close1));
+temp=''+''+"工"+"作"+"日"+"志"
+aux2 = appendChild(aux1,folderNode(temp,'2102','../workrec/workindex.asp',img_open1,img_close1));
+temp=''+''+"短"+"信"+"发"+"送"
+aux2 = appendChild(aux1,folderNode(temp,'2103','../sms/sms.asp',img_open1,img_close1));
+
+}
+
+
+
+
+function appendChild(parent, child)//初始化
+{
+	parent[parent.length] = child
+	return child
+}
+ //-->
+ 
+ //each node in the tree is an Array with 4+szcd positions 
+
+//*******system define*************//
+//  node[0] is 0/1 when the node is closed/open
+//  node[1] is 0/1 when the folder is closed/open
+//  node[2] is 1 if the children of the node are documents 
+//  node[3] is the name of the folder
+//  node[4] is bh
+//	node[5] is img open source
+//  node[6] is img close source
+//  node[7] is href url
+//******* user define ***********88//
+
+//  node[10]...node[10+n] are the n children nodes
+
+// ***************
+// Building the data in the tree
+
+function folderNode(name,bmbh,surl,imgopen,imgclose)//枝节点结构
+{
+var arrayAux
+	arrayAux = new Array
+	arrayAux[0] = 0
+	arrayAux[1] = 0
+	arrayAux[2] = 0
+	arrayAux[3] = name
+	arrayAux[4] = bmbh
+	arrayAux[5] = imgopen
+	arrayAux[6] = imgclose
+	arrayAux[7] = surl
+	
+        
+        return arrayAux
+}
+
+function leafNode(name)//叶节点
+{
+var arrayAux
+	arrayAux = new Array
+	arrayAux[0] = 0
+	arrayAux[1] = 0
+	arrayAux[2] = 1
+	arrayAux[3] = name
+    arrayAux[4] = bmbh
+    
+        return arrayAux
+} 
+
+/*****************  public Part   ****************/
+//页面初始化
+function initializeTree()
+{
+	generateTree()
+	openBranch("0",foldersTree) 
+   
+    
+}
+//点击图片
+function clickFun()
+{var s
+
+ s=event.srcElement.id;
+ 
+ s=s.substring(3,s.length);
+ 
+ openBranch(s,foldersTree);
+  
+}
+
+
+
+//打开下级目录主函数
+function openBranch(branchName,foldersNode)
+{   
+   var i;
+   
+   if ((foldersNode[4]!=branchName)&&(foldersNode[4].length<branchName.length) &&((foldersNode[4]==branchName.substring(0,foldersNode[4].length) ||(foldersNode[4]=="0"))))
+   
+   { 
+     if (!foldersNode[0])
+	clickOnFolderRec(foldersNode);
+      for (i=szcd;i< foldersNode.length; i++)
+           
+          openBranch(branchName,foldersNode[i])
+   }
+else if (("tid"+foldersNode[4]==branchName) ||(foldersNode[4]==branchName))
+       
+         clickOnFolderRec(foldersNode);
+	//alert("tid"+foldersNode[4]==branchName);
+
+}
+//修改所点击位置的图标
+
+function changeThis(foldersNode)
+{  var img_obj,imgId
+    img_obj=document.getElementById("img"+foldersNode[4]);
+
+    if (foldersNode[0])
+    {
+     img_obj.src=foldersNode[6];
+    }
+    else
+    {img_obj.src=foldersNode[5];
+    }
+
+
+}
+
+
+
+//展开或关闭节点
+function clickOnFolderRec(foldersNode)
+{
+var i
+
+var finalSign=false;
+zhhId=foldersNode[4];
+
+ //alert(foldersNode.length);
+
+changeThis(foldersNode); //edit owner img src
+		   //zhhId=foldersNode[4];
+		  
+		   if (foldersNode[0])
+		   {
+		   for (i=szcd;i< foldersNode.length; i++)
+			   { 
+			     closeFolders(foldersNode[i]);}
+			     foldersNode[0] = 0;
+                 foldersNode[1] = 0;
+			   
+			}
+		   else
+		   {
+			        foldersNode[0] = 1;
+                	foldersNode[1] = 1;
+                	 
+                	
+            	for (i=szcd; i< foldersNode.length; i++)
+            	  { if (i==(foldersNode.length-1))
+            	      {finalSign=true;
+            	      }
+            	     
+            	    
+                    nodeOpen(finalSign,foldersNode[i]);//参数：本节点是否是本级最后节点，节点本身	   
+                	
+                 }
+		    }
+	}
+
+//左边是否连接与上级
+function leftSide(foldersNode,obj)
+{var i;
+ 
+
+ if (foldersNode[4].length>=4)
+  
+  { var brotherNode,lastNode,s;
+        brotherNode=foldersTree.length;
+        lastNode=0;
+        s=foldersNode[4].substring(0,(foldersNode[4].length-2));
+        //alert(s);
+        for(i=szcd;i<foldersTree.length;i++)
+         {   if(i==(foldersTree.length-1))
+              { lastNode=1;//判断自己是否是父节点的最后一个子节点}
+              }
+              level(foldersTree[i],s,obj,brotherNode,lastNode);
+             
+          }
+   }
+
+
+}
+
+function level(foldersNode,s,obj,brotherNode,lastNode)
+ {
+  var i,img_obj
+
+  if (foldersNode[4]==s.substring(0,foldersNode[4].length))
+   {  
+    // alert(lastNode);
+       if ((brotherNode>szcd)&&(!lastNode))
+          {
+              img_obj=document.createElement("img");
+              img_obj.src="image/vertline.gif";
+              img_obj.width="16";
+              img_obj.height="22";
+              img_obj.border="0";
+              obj.appendChild(img_obj);
+          
+          }
+          else
+          {   img_obj=document.createElement("img");
+              img_obj.src="image/blank.gif";
+              img_obj.width="16";
+              img_obj.height="22";
+              img_obj.border="0";
+              obj.appendChild(img_obj);
+          
+          }
+          
+        brotherNode=foldersNode.length;
+        
+         for(i=szcd;i<foldersNode.length;i++)
+          {  if(i==(foldersNode.length-1))
+              { lastNode=1;//判断自己是否是父节点的最后一个子节点}
+              }
+              else
+              {lastNode=0;
+              }
+         level(foldersNode[i],s,obj,brotherNode,lastNode);  
+           }
+     }
+   }
+  
+  
+  
+  
+  
+  
+   
+
+
+
+//展开节点
+
+
+function nodeOpen(finalSign,foldersNode)
+{   var i;
+	var thisobj=document.getElementById(foldersNode[4]);
+    if (foldersNode[0]==1)
+    { 
+		
+		if (thisobj==null)
+		{	folderOpen(finalSign,foldersNode);}
+		else
+		{	thisobj.style.display="block";}
+		
+            	for (i=szcd; i<foldersNode.length;i++)
+            	  { if (i==(foldersNode.length-1))
+            	      {finalSign=true;
+            	      }
+            	     
+            	    
+                    nodeOpen(finalSign,foldersNode[i]);//参数：本节点是否是本级最后节点，节点本身	   
+                	
+                 }
+	}
+    else
+    {
+     if (thisobj==null)
+		{	folderOpen(finalSign,foldersNode);}
+		else
+		{	thisobj.style.display="block";}
+    
+    }
+
+ thisobj=null;
+}
+
+
+//显示页面
+
+//关闭本节点主程序
+function closeFolders(foldersNode)
+{
+var i,j
+var obj,obj1
+
+	var thisobj=document.getElementById(foldersNode[4])
+	if (thisobj!=null)
+	{thisobj.style.display="none";}
+	thisobj==null;
+	
+
+        if (foldersNode[0]==1)
+	{
+	     
+	    
+        	for (i=szcd;i<(foldersNode.length);i++)
+	           {
+	             
+	             closeFolders(foldersNode[i]);
+	            
+	           }
+
+        
+	}
+	   
+       
+}
+
+
+
+//页面节点展开
+function folderOpen(finalSign,foldersNode)
+{
+ var tbody_obj,tr_obj,td_obj,tbl_obj1,imgNode_obj,imgfolder_obj,zt;
+
+  var ownerId
+  ownerId=foldersNode[4];
+  zt=foldersNode[0];
+  //获得前一节点
+  
+   tbl_obj=document.getElementById(zhhId);
+   //建立本节点Table
+   tbl_obj1=document.createElement("table");
+   tbl_obj1.id=ownerId;
+   tbl_obj1.border="0";
+   tbl_obj1.cellSpacing="0";
+   tbl_obj1.cellPadding="0";
+   tbl_obj.insertAdjacentElement("afterEnd",tbl_obj1);  
+   //建立本节点TBody  
+     tbody_obj=document.createElement("tbody");
+     tbody_obj.id="tbody"+ownerId
+     tbl_obj1.appendChild(tbody_obj);
+    //建立本节点TR
+      tr_obj=document.createElement("TR");    
+      tbody_obj.appendChild(tr_obj);
+    //建立本节点TD
+      td_obj=document.createElement("td");
+      td_obj.align="left";
+      td_obj.vAlign="bottom" 
+      tr_obj.appendChild(td_obj);
+     //插入图片
+      if (foldersNode.length>=4)
+      leftSide(foldersNode,td_obj);
+      
+      
+        imgNode_obj=document.createElement("img");
+        if (finalSign)       //判断是否最后节点
+          {  
+          imgNode_obj.src="image/lastnode.gif";
+           }
+        else
+          {
+          imgNode_obj.src="image/node.gif";
+           }
+		imgNode_obj.border="0";
+		imgNode_obj.width="16";
+		imgNode_obj.height="22";
+		td_obj.appendChild(imgNode_obj);
+            
+    
+     
+      
+      imgFolder_obj=document.createElement("img");
+       
+       if (zt==0)   //判断当前节点状态close/open
+        {
+          imgFolder_obj.src="image/closedfolder.gif";
+        }
+       else
+        {
+         imgFolder_obj.src="image/openfolder.gif";
+        }
+         
+       imgFolder_obj.id="img"+foldersNode[4];
+       imgFolder_obj.border="0"
+       imgFolder_obj.width="39";
+       imgFolder_obj.height="22";
+       imgFolder_obj.style.cursor="hand";
+       td_obj.appendChild(imgFolder_obj);
+       imgFolder_obj.attachEvent("onclick",clickFun);
+       
+      
+       td_obj=document.createElement("td"); //分类名称
+       td_obj.vAlign="bottom";     
+       td_obj.id="tdright"+foldersNode[4];
+	   td_obj.innerHTML="<nobr><a style='cursor:hand' onclick='javascript:dfwh(\"" + foldersNode[4] + "\")'><font id='textid" +foldersNode[4] + "' >" + foldersNode[3] + "</a></nobr>";
+       tr_obj.appendChild(td_obj);
+      td_obj.attachEvent("onclick",clickFun);
+     
+       zhhId=foldersNode[4];
+      
+}
+
+///////////////////删除节点分程序////////////////////
+  function delNode(id)
+  {var j
+  j="tbody" + id
+	obj=document.getElementById(id);
+	obj1=document.getElementById(j);
+	if (obj!=null && obj1!=null)
+		{obj1.deleteRow([0]);
+		delmain_wer(obj1);
+		delmain_wer(obj);
+		}
+  }
+ 
+ function delmain_wer(obj)
+  {  
+   var length,i,j
+   
+   if (obj.haschildNodes) 
+     {
+       
+       length=obj.childNodes.length
+       for(i=(length-1);i>= 0;i--)
+         {
+         delmain_wer(obj.childNodes(i))        
+     
+         if (obj.childNodes.length==0)
+           {
+            obj.removeNode(false) ;
+           }
+         }
+      }
+    
+   else
+    { 
+		obj.removeNode(false);
+    } 
+   
+}
+/*************** End public  Part******************/
+//////////////////////////////////
+//新增分类
+//////////////////////////////////
+function addNode(sjbmbh,foldersNode,newNode)
+{	
+	
+	var i
+   
+	if (foldersNode[4]==sjbmbh)
+		{
+		newNode[5]=img_open1;
+		newNode[6]=img_close1;
+		if (sjbmbh=="0")
+			{foldersNode[foldersNode.length]=foldersNode[foldersNode.length-1];
+			 foldersNode[foldersNode.length-2]=newNode;
+			}
+		else
+			{foldersNode[foldersNode.length]=newNode;}
+	
+			refreshNode(foldersNode);
+		}
+	else
+	 {for(i=szcd;i<foldersNode.length;i++)
+		{addNode(sjbmbh,foldersNode[i],newNode);
+		}
+	 }
+}
+
+////////////修改分类信息////////////////
+
+function editNode(id,foldersNode,temp)
+ { var i;
+	var fontcolor="";	
+	if (foldersNode[4]==id)
+	{
+		
+		foldersNode[3]=temp;
+		var obj=document.getElementById("tdright"+id)
+		if (obj!=null)
+			{
+			if (foldersNode[4]==pubId)
+				{	fontcolor=" color='white' ";}
+			obj.innerHTML="<nobr><a style='cursor:hand' onclick='javascript:dfwh(\"" + foldersNode[4] + "\")'><font id='textid" +foldersNode[4] + "'" + fontcolor + ">" + foldersNode[3] + "</a></nobr>";
+		
+			obj=null;
+			}
+	}	
+	else
+	 {for(i=szcd;i<foldersNode.length;i++)
+		{editNode(id,foldersNode[i],temp);
+		}
+	 }
+
+ 
+ }
+ 
+ function changefocus(flag)
+ {var obj=document.getElementById("textid" + pubId);
+		if (obj!=null)
+			{	obj.color="";
+				obj=null;
+			}
+		obj=document.getElementById("tdright"+pubId);
+		if(obj!=null)
+			{	obj.style.backgroundColor="";
+				obj=null;
+			}
+		
+	obj=document.getElementById("tdright" + flag);
+		if (obj!=null)
+			{obj.focus();
+			obj.style.backgroundColor="blue";
+			pubId=flag;
+			}
+	  obj=null
+	 
+	 obj=document.getElementById("textid" + flag);
+		if (obj!=null)
+			{
+			obj.color="white";
+			pubId=flag;
+			}
+ 
+ }
+
+//删除分类信息
+function removeNode(foldersNode,id)
+{	
+	var i
+    var folder_temp
+	 for(i=szcd;i<foldersNode.length;i++)
+		{
+			folder_temp=foldersNode[i];
+			if (folder_temp[4]==id)
+			{reIndex(foldersNode,i,id)
+			}
+			else
+			{removeNode(foldersNode[i],id);
+			}
+		}
+	 
+
+}
+
+function reIndex(foldersNode,i,id)
+{	var j;
+	
+	for (j=i;j<foldersNode.length-1;j++)
+		
+		{foldersNode[j]=foldersNode[j+1];}
+		foldersNode.length=foldersNode.length-1;
+	
+	
+	
+	delNode(id);
+
+	refreshNode(foldersNode);
+	
+}
+
+function refreshNode_del(foldersNode)
+{	var i
+	delNode(foldersNode[4]);
+	for(i=szcd;i<foldersNode.length;i++)
+	{	
+		
+		
+		refreshNode_del(foldersNode[i]);
+	}
+
+}
+
+function refreshNode(foldersNode)
+{var i
+	for(i=szcd;i<foldersNode.length;i++)
+		{
+		refreshNode_del(foldersNode[i]);}
+	
+	if (foldersNode[0]==0)
+	{foldersNode[0]=1;
+	  openBranch(foldersNode[4],foldersTree);
+	}
+	else
+	{foldersNode[0]=0;
+	  openBranch(foldersNode[4],foldersTree);
+	}
+}
+
+////////////////////////////////////////////////////
+</script>
+
+
+
+
+
+<body>
+
+
+ <table  id="0" border="0" cellspacing=0 cellpadding=0 >
+    <tbody id="tbody0">
+       <tr>
+          <td valign="middle"><img src="image/closedfolder.gif" id="img0" width="39" style="cursor:hand" height="22" border="0" onclick="javascript:openBranch('0',foldersTree)"></td>
+          <td valign="bottom" id="tdright0"><nobr><a style="cursor:hand" ><font id="textid0" onclick="javascript:dfwh('0')" >丰都分公司办公系统 </font></a></nobr></td>
+       </tr>
+    </tbody>
+</table>
+
+
+<form name="formlistry" method="post" action="../rsgl/rsxxtjcx_gs.asp" target="middle">
+<input type="hidden" name="editflag" id="editflag" value="admin_bm">
+<INPUT type="hidden" name="qr_bm" id="qr_bm" value="">
+<INPUT type="hidden" name="treeFlag" id="treeFlag" value="Tree">
+</form>
+
+<script language="javascript">
+	function doSearchNode(id,foldersNode)
+	{   var i
+		if(id==foldersNode[4])
+              {	
+				pubfolder=folderNode(foldersNode[3],foldersNode[4],foldersNode[7],foldersNode[5],foldersNode[6]);        
+              }
+		else
+			{
+	
+				for(i=szcd;i<foldersNode.length;i++)
+					{ 
+						doSearchNode(id,foldersNode[i]);
+					}
+			}
+	}
+	
+	
+	function dfwh(flag)
+	{
+	
+	doSearchNode(flag,foldersTree);
+	
+	var obj
+	if (pubId!=null)
+	 {obj=document.getElementById("tdright" + pubId);
+		if (obj!=null)
+			{obj.style.backgroundColor="";
+			}
+	  obj=null
+	 
+	 
+	 obj=document.getElementById("textid" + pubId);
+		if (obj!=null)
+			{obj.color="";
+			}
+	  obj=null
+	 }
+	 
+	 obj=document.getElementById("tdright" + flag);
+		if (obj!=null)
+			{obj.focus();
+			obj.style.backgroundColor="blue";
+			}
+	  obj=null
+	 
+	 obj=document.getElementById("textid" + flag);
+		if (obj!=null)
+			{
+			obj.color="white";
+			pubId=flag;
+			}
+		
+	
+	
+	
+	
+	if (flag=="df")
+		{formlistry.editflag.value = "admin_bm"	;
+				formlistry.qr_bm.value = "_NULL";
+				formlistry.submit();
+			
+		}
+	  else if (flag=="wh")
+		{formlistry.editflag.value = "admin_wh";
+				formlistry.qr_bm.value = "";
+				formlistry.submit();
+		}
+	 else
+		{	
+			if (pubfolder[7]=="$"){
+			}
+			else{
+				parent.parent.table_index.location=pubfolder[7];
+			}
+			
+		}
+	
+	
+	
+		}
+</script>
+<script language="javascript">
+
+initializeTree();
+</script>
+
+
+	</TD>
+  </TR>
+  </TBODY>
+</TABLE>
+</BODY>
+</HTML>
+

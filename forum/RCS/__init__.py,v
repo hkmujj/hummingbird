@@ -1,0 +1,415 @@
+head	1.1;
+access;
+symbols;
+locks
+	administrator:1.1
+                                                                                                                                                                                                        ; strict;
+comment	@# @;
+
+
+1.1
+date	2012.02.08.09.49.14;	author administrator;	state Exp;
+branches;
+next	1.0;
+
+1.0
+date	2011.11.30.09.47.35;	author administrator;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.1
+log
+@<>
+@
+text
+@﻿# -*- coding: utf-8 -*-
+# $Header: D:\\RCS\\D\\python_study\\cherrypy\\forum\\__init__.py,v 1.0 2011-10-08 22:54:04+08 administrator Exp administrator $
+import sqlite3, os, chardet, MySQL, cherrypy, cgi, sys, dbapi, my_tools, chardet, db_files, traceback
+exposed = True
+name = '老城月光'
+
+def header(forum_url=".", **kw):
+	'''论坛页眉,公用先调用的函数, 可以只在此处检查是否登录,而不用对每一个需要发布的函数都检查登录情况'''
+
+	import ami, cgi
+	#yield '%s' % cgi.escape(str(ami.connect_pool))
+	yield '<html><head><title>老城月光</title><script language="JavaScript" src="/static_files/calendar.js"></script><link rel="Stylesheet" href="/static_files/k_base.css"></link></head><body>\n'
+	yield '''<div align="center"><b style="font-size:24;display:none">云飞办公系统</b></div><a href="'''+forum_url+'''">首页</a> | <a href="'''+forum_url+'''/new">发表</a> | <a href="'''+forum_url+'''/setup">设置</a> | </div>'''
+	#print kw.get('keyword',''), chardet.detect(kw.get('keyword',''))
+	key = kw.get('keyword',cherrypy.session.get('keyword',''))
+	key = key.encode('utf-8')
+	find_s = """<div align="right"><form style='margin:0px;display:inline' method="get" action="%s"><input name=keyword size=20 value="%s" BBonmouseover=this.select() title="请用空格分开多个关键字\n输入'#33'可以直接访问第33号贴子" /><input name=_text type=text style="display:none"><input type=submit value='查找' name="action" /></form>&nbsp;&nbsp;<form style='margin:0px;display:inline' action="%s/search"><input type=hidden name=keyword value=''><input type=submit value=清除></form></div>""" % ('%s/search' % forum_url, cgi.escape(key, quote=True), forum_url)
+	yield find_s
+
+def footer():
+	'''论坛页脚'''
+
+	yield '\n</body></html>'
+
+def dis_title(msg_id, forum_url=".", root=0):
+	'''显示某主题及其所有跟贴的题目,此函数是嵌套调用的'''
+
+	rec = dbapi.event(msg_id)[0]
+	title_m = '''<div style="font-size:11.5pt;margin:0px;display:inline"><a href="'''+forum_url+'''/%(id)s" title="(content)s">%(title)s</a>[#%(id)s: %(length)s, %(count_follow)s/%(count_access)s - %(user)s (%(time_create)s)]</div><br />'''
+	if msg_id==root:
+		title_m = '<b>%s</b>' % title_m
+	yield '\n<ul>'
+	yield title_m % rec.__dict__
+	if rec.id_follow_s:
+		for msg_id in rec.id_follow_s.split(','):
+			yield ''.join(dis_title(msg_id, forum_url, root))
+	yield '</ul>\n'
+
+def index():
+	'''论坛首页'''
+
+	event1 = dbapi.event(id_up=0, _order='time_last_follow desc', _page_size=50)
+	yield ''.join(header())
+	for rec in event1:
+		yield ''.join(dis_title(rec.id,'.',rec.id))
+	yield ''.join(footer())
+index.exposed = True
+
+def dis_msg_title():
+	'''显示某贴子的题目, 此函数为显示,修改,回复,删除,移动等的共用函数'''
+
+	yield '''<br /><div align="center" style="font-size:11.5pt;margin:2px;"><b style="font-size:15pt" align="center">%(title)s</b><br />%(user)s %(time_create)s <br /></div>'''
+	func_s = (('message','查看'), ('reply','回复'), ('edit','修改'), ('download','下载'), ('delete','删除'), ('lock','锁贴'), ('move','移动'))
+	yield ' | '.join(map(lambda x:'<a href="../%s/%s">%s</a>' % (x[0],'%(id)s',x[1]), func_s))
+
+def message(*k):
+	'''显示某条贴子'''
+
+	rec = dbapi.event(k)[0]
+	rec.__dict__['content'] = cgi.escape(rec.__dict__['content']).replace('\n','<br />')
+	yield ''.join(header('..'))
+	try:
+		yield ''.join(dis_msg_title()) % rec.__dict__
+		yield '''<hr />%(content)s<hr />''' % rec.__dict__
+	except:
+		print traceback.print_exc()
+		raise
+	yield ''.join(dis_title(rec.id_root, '.', k[0]))
+	yield ''.join(footer())
+message.exposed = True
+
+def default(*k, **kw):
+	'''默认处理方法'''
+
+	if len(k) == 1 and k[0].isdigit():
+		raise cherrypy.HTTPRedirect('message/%s' % k[0])
+	else:
+		yield '%s' % str(k)
+		yield '%s' % str(kw)
+default.exposed = True
+
+def search(**kw):
+	'''查找贴子'''
+
+	#print '--kw', str(kw)
+	try:
+		yield ''.join(header('.', **kw))
+	except:
+		#print 'header error'
+		#print traceback.print_exc()
+		raise
+	#print 'header'
+	keyword = kw['keyword']
+	#print chardet.detect(keyword)
+	#keyword = keyword.decode(chardet.detect(keyword)[0], 'ignore')
+	#keyword = keyword.encode('utf-8', 'ignore')
+	if keyword == '':
+		raise cherrypy.HTTPRedirect(cherrypy.url()+'/..')
+	else:
+		cherrypy.session['keyword'] = keyword
+		#print 'set sesson', keyword
+	if keyword[0]=='#' and keyword[1:].isdigit():
+		raise cherrypy.HTTPRedirect(cherrypy.url()+'/../%s' % keyword[1:])
+	s = '<br>'
+	kw = {'_values_1':False, '_order':'id desc'}
+	old_key = keyword
+	keyword = my_tools.fenchi(keyword)
+	#kw['keyword'] = ['match', my_tools.fenchi(keyword)]
+	kw['keyword'] = ['match', keyword.encode('gb2312')]
+	kw['_select_columns'] = ['id']
+	kw['_page_size'] = 100
+	#print kw
+	recs = dbapi.search(**kw)
+	recs = dbapi.event(recs.id, _order='id desc')
+	s += '<span align=center><ul style="align:center">%s个结果吻合(若过多只显示前%s个)</ul></span>' % (len(recs), kw['_page_size'])
+	tree_str = '''<ul style="margin:5px 5px 15px 5px"><span style="font-size:11pt"><a href="message/%(id)s">%(title)s</a>
+	#[#%(id)s: %(length)s, %(count_follow)s/%(count_access)s] - %(user)s (%(time_create)s)</span><ul style="font-size:10pt">%(content)s<no></ul></ul>'''
+	#coding = chardet.detect(tree_str)['encoding']
+	#tree_str = tree_str.decode(coding)
+	#print 's: ', s
+	yield s
+	for rec in recs:
+		rec.title = cgi.escape(rec.title, quote=True)
+		for key in old_key.split():
+			#print key, chardet.detect(key), rec.title, chardet.detect(rec.title)
+			rec.title = rec.title.replace(key.encode('utf-8'),'<font color=red>%s</font>' % key.encode('utf-8'))
+		rec.content = cgi.escape(rec.content, quote=True)
+		rec.content = rec.content.decode('utf-8', 'ignore')
+		if rec.length>200:
+			find_s = []
+			keyword_s = keyword.split()
+			#keyword_s = [i.decode('gb2312','ignore') for i in keyword_s]
+			for keyword in keyword_s:
+			#for keyword in [i for i in keyword.split()]:
+				find_s.append(-1)
+				while rec.content.find(keyword,find_s[-1]+1) > -1 and len(find_s)<8:
+					find_s.append(rec.content.find(keyword, find_s[-1]+1))
+			find_s = list(set(find_s))
+			find_s.sort()
+			LEN = 50
+			start, end = 0, 0
+			tmp_s = ''
+			for ser,index in enumerate(find_s[0:]):
+				if index-LEN < end:
+					end = index + LEN
+					continue
+				tmp_s += u'<no>%s<br>' % rec.content[start:end]
+				start = index - LEN
+				end = index + LEN
+			tmp_s += '.%s.' % rec.content[start:end]
+			#print tmp_s, chardet.detect(tmp_s)
+			rec.content = tmp_s
+		rec.content = rec.content.encode('utf-8', 'ignore')
+		for key in old_key.split():
+			rec.content = rec.content.replace(key.encode('utf-8'), '<font color=red>%s</font>' % key.encode('utf-8'))
+		#rec.forum_message_url = message_url
+		yield tree_str % rec.__dict__
+search.exposed = True
+
+def new(**kw):
+	'''发布新贴子'''
+
+	yield ''.join(header('.'))
+	kw.setdefault('title','')
+	kw.setdefault('content','')
+	yield ''.join(print_post(".", '发表', 0, **kw))
+	yield ''.join(footer())
+new.exposed = True
+
+def reply(*k,**kw):
+	'''回复贴子'''
+
+	rec = dbapi.event(k[0])[0]
+	if kw.get('submit','') == u'回复':
+		print '--answer'
+		if kw.get('title','') == '':
+			print 'title is needed'
+		print kw, k
+	yield ''.join(header('..'))
+	yield ''.join(dis_msg_title()) % rec.__dict__
+	kw.setdefault('title','')
+	kw.setdefault('content','')
+	yield ''.join(print_post(".", '回复', k[0], **kw))
+	yield ''.join(footer())
+	yield ''.join(dis_title(rec.id_root, '../message'), k[0])
+reply.exposed = True
+
+def edit(*k,**kw):
+	'''编辑贴子'''
+
+	rec = dbapi.event(k[0], _values_1=True)
+	if kw.get('submit','') == u'修改':
+		# 注意,目前数据库里编码是以gb2312保存的.后续应达到如下标准:凡是在文件里处理,是以unicode编码, 凡是在IO接口时,以utf-8.建议此原则后,则会少遇到很多编码问题.
+		title = my_tools.auto_decode(kw['title'], 'utf-8')
+		update_f = 0
+		if title<>rec.title:
+			#print 'update title'
+			#print chardet.detect(title), ',>', chardet.detect(rec.title)
+			rec.title = kw['title'].encode('gb2312', 'ignore')
+			update_f = 1
+		content = my_tools.auto_decode(kw['content'], 'utf-8')
+		if content<>rec.content:
+			#print 'update con'
+			rec.content = kw['content'].encode('gb2312')
+			update_f = 1
+		if update_f: # 作了更新,因此要同步更新search表
+			print 'update search...'
+			search = my_tools.fenchi(title, content, rec.user, rec.state)
+			print search
+			dbapi.search(int(k[0])).keyword = search.encode('gb2312','ignore')
+	yield ''.join(header('..'))
+	yield ''.join(dis_msg_title()) % rec[0].__dict__
+	kw.setdefault('title',rec.title)
+	kw.setdefault('content',rec.content)
+	yield ''.join(print_post(".", '修改', k[0], **kw))
+	yield ''.join(dis_title(rec.id_root, '../message', k[0]))
+	yield ''.join(footer())
+	del rec
+edit.exposed = True
+
+def print_post(forum_url=".", method="发表", old_msg_id=0, **kw):
+	'''发布新贴子'''
+
+	for item in kw:
+		try:
+			kw[item] = cgi.escape(kw[item]).encode('utf-8')
+		except: pass
+	from HTMLTags import INPUT
+	yield '''<hr /><table border=1 width="90%%" align="center" style="margin:0px 0px"><form name="form4" method=post ENCTYPE="multipart/form-data" BBonsubmit="alert(enctype);this.submit()">'''
+	public_s = [['完全公开','未登录也可以对此贴进行查找,查看,下载'], ['注册用户','需要登录才能对此贴进行查找,查看,下载'], ['指定用户','仅被指定的用户才能对本贴进行查找,查看,下载']]
+	yield '''\n<tr><td width=10%%%% align=center>安全级别</td><td>%s&nbsp;&nbsp;<span id="public_demo">请选择安全级别</span></td><td></td>''' % INPUT(['完全公开','注册用户','指定用户'], type="radio", name="public", value=['完全公开', '注册用户', '指定用户'], checked=kw.get('public','完全公开'), onclick=["public_demo.innerHTML='%s'" % j for i,j in public_s])
+	goto_url = [['返回首页',forum_url], ['发表新贴',forum_url+'/new'], ['查看本贴',forum_url+'/message/NEW'], ['修改本贴',forum_url+'/edit/NEW'], ['回复本贴',forum_url+'/reply/NEW']]
+	if method in ('回复', '修改'):
+		goto_url.append(['回复旧贴',forum_url+'/reply/%s' % old_msg_id])
+
+	yield '''\n<tr><td width=10%%%% align=center>成功跳转</td><td>%s</td><td></td>''' % INPUT([k[0] for k in goto_url], type="radio", name="goto_url", value=[k[1] for k in goto_url], checked="self.so['goto_url']") 
+	#yield """\n<tr><td align=center>内容来源 </td><td>%s</td><td></td></tr>""" % INPUT(['手工输入', '从文件获取'], type='radio', name='comefrom', value=['手工输入', '从文件获取'], checked=self._QUERY.get('comefrom','手工输入'), onclick=["push.style.display='block';push1.style.display='block';fileload.style.display='none';", "push.style.display='none';push1.style.display='none';fileload.style.display='block';"])
+	yield """\n<tr id="push" style="display:block"><td width=10%% align=center>主题: </td><td><input type=text style="display:none"><input name=title style="width:100%%" value="%(title)s"></td><td><font color=red>*</font></td><tr>""" % kw
+	yield """\n<tr id="push1" style="display:block"><td colspan=1 align=center>内容:</td><td> <textarea name=content height='6%%'>%(content)s</textarea></td><td></td></tr>""" % kw
+	yield """\n<tr id="fileload" style="display:block"><td align=center>选择文件</td><td><input type=file style="width:70%" name="zfile" title="选中一个文件上传,可选.文件名会作为题目,在上面没有输入主题的情况下；文件内容也会抽取作为文本输入块的值"><input type=checkbox name="uponly" value='是' title="选中此项,则不会把文件的文本内容复制作为上面的文本输入块的内容">仅上传,不参与全文搜索</td><td><font color=red>*</td></tr>"""
+	yield '''\n<tr><td colspan=3 align=center><input type=submit value="%s" name="submit">&nbsp;&nbsp;<input type=reset value="重置"></td>''' % method
+	yield '''\n</form></table><hr />'''		
+
+def move(msg_id,**kw):
+	'''移动贴子,有两种情况:一种是移动为根贴,一种是移动到其他贴子下面'''
+
+	for item in kw:
+		try:
+			kw[item] = kw[item].encode('utf-8','ignore')
+		except: pass
+	rec = dbapi.event(msg_id)[0]
+	forms = '''<hr /><form action='' method=get style="display:inline" accept-charset="utf-8">请输入将要移往的贴子序号:<input type=text name=id_up_new size=5 value='%s' %s /><input type=input name=temp32323 style="display:none">&nbsp;<input type=submit Nname=submit value=确认题目 %s />&nbsp;</form><form action='' method=post style="display:inline"><input type=submit Nname=submit value="移动" %s /><input type=hidden name=id_up_new value="%s"></form>'''
+	forms += '''&nbsp;<form action='' method=post style="display:inline"><input type=submit name=Ssubmit value="移动为根贴" %s /><input type=hidden name=tmp13413></form><br>贴子题目:<input type=text name=title_up_new value='%s' size=80 readonly /><hr />'''
+	form_x = ['','','','disabled','','','']
+	form_x[0] = kw.get('id_up_new','')
+	form_x[4] = form_x[0]
+	if form_x[0]:
+		rec_new = dbapi.event(form_x[0])[0]
+		form_x[6] = rec_new.title
+	if len(form_x[6]):
+		form_x[3] = ''
+		form_x[1] = form_x[2] = 'disabled'
+	if rec.id_up == 0:
+		form_x[5] = 'disabled'
+	s = ''.join(header('..'))
+	s += ''.join(dis_msg_title()) % rec.__dict__
+	s += forms % tuple(form_x)
+	s += ''.join(dis_title(rec.id_root, '../message', msg_id))
+	s += ''.join(footer())
+	#print s.decode('utf-8', 'ignore')
+	return s
+move.exposed = True
+
+def download(file_id):
+	'''下载id为file_id的文件'''
+
+	#yield 'download %s' % file_id
+	files = db_files.files(file_id, _values_1=True)
+	if not len(files):
+		cherrypy.response.headers['Content-Type'] = 'text/html; charset=utf-8'
+		#cherrypy.response.headers['Content-Disposition'] = 'attachment;filename=%s.csv' % table_name
+		#self.start_response('200 OK',[('Content-Type','text/html;charset=gb2312')])
+		yield '没有文件可供下载!'
+		return
+	import zlib
+	content = zlib.decompress(files.content)
+	filename = dbapi.event(file_id).title
+	filename = filename.decode('utf-8').encode('gb2312')
+	#print filename, chardet.detect(filename)
+	cherrypy.response.headers['Content-Type'] = 'application/octet-stream'
+	cherrypy.response.headers['Content-Disposition'] = 'attachment;filename=%s' % filename
+	#self.start_response('200 OK', [('Content-Type','application/octet-stream'),('Content-Disposition','attachment;filename=%s' % files.name)])
+	yield content
+download.exposed = True
+
+if __name__ == '__main__':
+	'''使本目录可以作为一个单独的cherrypy应用进行运行
+	需要注意的是,要做到此点,比如论坛中的交互url,全部要使用相对url'''
+	conf = os.path.join(os.path.dirname(__file__),  __file__[:-2]+'conf')
+	Root = __import__(__file__[:-3])
+	cherrypy.quickstart(Root, config=conf)
+
+# $Log: __init__.py,v $
+# Revision 1.0  2011-10-08 22:54:04+08  administrator
+# Initial revision
+#
+@
+
+
+1.0
+log
+@Initial revision
+@
+text
+@d3 1
+a3 1
+import sqlite3, os, chardet, MySQL, cherrypy, cgi, sys, dbapi
+d7 1
+a7 1
+def header(forum_url="."):
+d13 6
+a18 1
+	yield '''<DDdiv align="center"><b style="font-size:24;display:none">云飞办公系统</b></div><a href="'''+forum_url+'''">首页</a> | <a href="'''+forum_url+'''/new">发表</a> | <a href="'''+forum_url+'''/setup">设置</a> | '''
+d25 1
+a25 1
+def dis_title(msg_id, forum_url="."):
+d28 4
+a31 2
+	rec = dbapi.msg_ami(msg_id)[0]
+	title_m = '''<div style="font-size:11.5pt;margin:0px;display:inline"><a href="'''+forum_url+'''/%(id)s" title="(content)s">%(title)s</a>[#%(id)s: %(length)s, %(count_follow)s/%(count_access)s - %(author)s (%(time_submit)s)]</div><br />'''
+d36 1
+a36 1
+			yield ''.join(dis_title(msg_id, forum_url))
+d42 1
+a42 1
+	event1 = dbapi.msg_ami(id_up=0, _order='time_last_follow desc', _page_size=50)
+d45 1
+a45 1
+		yield ''.join(dis_title(rec.id))
+d52 1
+a52 1
+	yield '''<br /><div align="center" style="font-size:11.5pt;margin:2px;"><b style="font-size:15pt" align="center">%(title)s</b><br />%(author)s %(time_submit)s <br /></div>'''
+d59 2
+a60 2
+	rec = dbapi.msg_ami(k)[0]
+	rec.__dict__['message'] = cgi.escape(rec.__dict__['message']).replace('\n','<br />')
+d62 7
+a68 3
+	yield ''.join(dis_msg_title()) % rec.__dict__
+	yield '''<hr />%(message)s<hr />''' % rec.__dict__
+	yield ''.join(dis_title(rec.id_root, '.'))
+d72 1
+a72 1
+def default(*k):
+d79 1
+d82 78
+d173 6
+a178 1
+	rec = dbapi.msg_ami(k[0])[0]
+d185 1
+a185 1
+	yield ''.join(dis_title(rec.id_root, '../message'))
+d191 20
+a210 1
+	rec = dbapi.msg_ami(k[0])[0]
+d212 1
+a212 1
+	yield ''.join(dis_msg_title()) % rec.__dict__
+d214 1
+a214 1
+	kw.setdefault('content',rec.message)
+d216 1
+a216 1
+	yield ''.join(dis_title(rec.id_root, '../message'))
+d218 1
+d251 1
+a251 1
+	rec = dbapi.msg_ami(msg_id)[0]
+d258 1
+a258 1
+		rec_new = dbapi.msg_ami(form_x[0])[0]
+d268 1
+a268 1
+	s += ''.join(dis_title(rec.id_root, '../message'))
+d273 22
+@

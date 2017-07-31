@@ -1,0 +1,117 @@
+﻿<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN">
+<HTML>
+<HEAD>
+<TITLE></TITLE>
+<link rel="stylesheet" href="../css/FirstOA_1.css">
+<link rel="stylesheet" href="../FCKeditor/editor/css/fck_editorarea">
+<link rel="stylesheet" href="../FCKeditor/editor/css/fck_internal">
+<link rel="stylesheet" href="../FCKeditor/editor/css/fck_showtableborders_gecko">
+<META content="text/html; charset=utf-8" http-equiv=Content-Type>
+<META HTTP-EQUIV='Pragma' CONTENT='no-cache'>
+<META HTTP-EQUIV='Cache-Control' CONTENT='no-cache'>
+<META HTTP-EQUIV='Expires' CONTENT='0'>
+<script language="JavaScript" type="text/javascript" src="">
+</script>
+<style>
+A:link {
+COLOR: #0000ff; TEXT-DECORATION: none
+}
+A:visited {
+COLOR: #0000ff; TEXT-DECORATION: none
+}
+A:active {
+COLOR: #3333ff; TEXT-DECORATION: none
+}
+A:hover {
+COLOR: #ff0000; TEXT-DECORATION: none
+}
+</style>
+
+<SCRIPT>
+function Exit_OA()
+{
+// window.open("/general/exit_close.php","OA_EXIT","height=2,width=2,top=2000,left=2000");
+}
+
+function re_login()
+{
+window.open("/?RE_LOGIN=1");
+parent.parent.close();
+}
+</SCRIPT>
+
+<SCRIPT language=JavaScript>
+if (window.Event)
+document.captureEvents(Event.MOUSEUP);
+
+function nocontextmenu()
+{
+event.cancelBubble = true
+event.returnValue = false;
+
+return false;
+}
+
+function norightclick(e)
+{
+if (window.Event)
+{
+if (e.which == 2 || e.which == 3)
+return false;
+}
+else
+if (event.button == 2 || event.button == 3)
+{
+event.cancelBubble = true
+event.returnValue = false;
+return false;
+}
+
+}
+
+document.oncontextmenu = nocontextmenu;  // for IE5+
+document.onmousedown = norightclick;  // for all others
+</SCRIPT>
+
+<script language="vbscript">
+function exitsystem
+if msgbox ("您确定要退出办公助手系统吗？",vbYesNo+vbQuestion,"退出确定")=vbYes then				
+window.parent.location.href="../login.asp"
+end if
+end function
+</script>
+<META content="MSHTML 6.00.2800.1400" name=GENERATOR>
+</HEAD>
+<BODY class=bodycolor leftMargin=0 topMargin=0>
+
+<TABLE height=50 cellSpacing=0 cellPadding=0 width="100%" border=0>
+<TBODY>
+<TR>
+<TD background=/image/banner0.gif>    	
+<DIV 
+style="MARGIN-TOP: 5pt; FONT-WEIGHT: bold; FONT-SIZE: 17pt; FILTER: Glow(Color=#000000,Strength=2); WIDTH: 100%; COLOR: #ffffff; FONT-FAMILY: 宋体">
+
+&nbsp;蜂鸟信息管理系统</DIV>
+</TD>
+<td background=/image/banner0.gif>
+<SPAN class=small>&nbsp;<b>用户：陶光明</B></SPAN>
+</td>
+<TD class=small width=300 background=/image/banner1.gif>
+<DIV 
+style="FONT-WEIGHT: bold; FONT-SIZE: 9pt; FILTER: dropshadow(color=#FFFFFF,offx=1,offy=1,positive=1); WIDTH: 100%; COLOR: #000000; HEIGHT: 20pt" 
+align=right>2011年10月11日&nbsp;星期二&nbsp;</DIV>　　　　
+<A href="desktop" target=table_index>
+<IMG height=16 alt=我的办公桌 src="/image/mytable.gif" width=16 border=0>
+<FONT color=black>桌面</FONT>
+</A>
+　　　<A onclick="javascript:alert('聪明的你一看就明白该怎么操作，不需要帮助吧。有问题请联系系统管理员。');"
+<IMG height=16 alt=帮助 src="/image/help.gif" width=16 border=0>
+<FONT color=black>帮助</FONT>
+    </A> 
+    　　　<A href="VBScript:exitsystem()" >
+		     <IMG height=16 alt=退出系统 src="/image/exit.gif" width=16 border=0>
+			      <FONT color=black>退出</FONT>
+				    </A> 
+					 
+    </TD></TR></TBODY></TABLE>
+</BODY></HTML>

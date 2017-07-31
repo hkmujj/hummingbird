@@ -1,0 +1,1297 @@
+head	1.4;
+access;
+symbols;
+locks
+	administrator:1.4
+                                                                                                                                                                                                        ; strict;
+comment	@# @;
+
+
+1.4
+date	2012.02.06.07.50.19;	author administrator;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2011.12.09.09.13.01;	author administrator;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2011.12.06.08.00.39;	author administrator;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2011.11.25.01.44.25;	author administrator;	state Exp;
+branches;
+next	1.0;
+
+1.0
+date	2011.11.18.10.10.38;	author administrator;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.4
+log
+@�������ֻ�ĳ�´�����Ϣ��ѯ,���Բ鴮��,����,����ϵͳ(�Ƿ����ܻ�)
+@
+text
+@﻿# -*- coding: utf-8 -*-
+# $Header: D:\\RCS\\D\\python_study\\cherrypy\\forum\\__init__.py,v 1.0 2011-10-08 22:54:04+08 administrator Exp administrator $
+import sqlite3, os, chardet, MySQL, cherrypy, cgi, sys, xlrd, time, datetime, traceback, my_tools, config, dbapi
+from HTMLTags import TR, TD, INPUT, SELECT, OPTION
+name = '批量即席查询'
+__all__ = ['batch1', 'batch21', 'batch22', 'batch3', 'batch4', 'batch4_base', 'batch5', 'batch5_con', 'batch4_c', 'batch6', 'batch7', 'batch8', 'batch_cust', 'batch_uim', 'batch_byte', 'batch_esn', 'batch_esn_xxx']
+
+def header(forum_url=".",url='',**kw):
+	'''论坛页眉,公用先调用的函数, 可以只在此处检查是否登录,而不用对每一个需要发布的函数都检查登录情况'''
+
+	if 'fengongshi' in kw or cherrypy.session.get('fengongshi','')=='':
+		cherrypy.session['fengongshi'] = str(kw.get('fengongshi','33')) or '33'
+		raise cherrypy.HTTPRedirect(cherrypy.url().decode('utf-8'))
+	init_days = 2	# 此处设置次月几日才出帐
+	fee_month = int((datetime.datetime.now()+datetime.timedelta(days=-init_days)).strftime('%Y%m'))-1
+	fee_month = fee_month % 100 and str(fee_month) or str(fee_month-88)
+	if 'feemonth' in kw or cherrypy.session.get('feemonth','')=='':
+		cherrypy.session['feemonth'] = str(kw.get('feemonth',fee_month)) or fee_month
+		raise cherrypy.HTTPRedirect(cherrypy.url().decode('utf-8'))
+	yield '<html><head><title>数据集市</title><script language="JavaScript" src="/static_files/calendar.js"></script><link rel="Stylesheet" href="/static_files/k_base.css"></link></head><body>\n'
+	yield '<form style="display:inline" name="form0" ><select name=fengongshi onchange="document.form0.submit()">'
+	s_name, s_id = config.dict_name.values(), config.dict_name.keys()
+	yield '%s' % OPTION(s_name, value=s_id, selected=cherrypy.session.setdefault('fengongshi',''))
+	yield '</select></form>'
+	yield '<form style="display:inline" name="form1" ><select name=feemonth onchange="document.form1.submit()">'
+	months = ['201107', '201108','201109','201110','201111','201112']
+	months += map(lambda x:'2012'+('0'+str(x))[-2:], range(1,13))
+	ymd = (datetime.datetime.now()+datetime.timedelta(days=-2)).strftime('%Y%m')
+	if ymd in months:
+		index = months.index(ymd)
+		months = months[:index+1]
+	s_name, s_id = months,months
+	yield '%s' % OPTION(s_name, value=s_id, selected=cherrypy.session.setdefault('feemonth',fee_month))
+	yield '</select></form>'
+	yield '<a href="..">上级</a> | <a href="%s">返回首页</a>' % forum_url
+	for col in globals()['__all__']:
+		#yield ' | <a href="%s">%s</a>' % (col, getattr(globals()[col],'__doc__',col))
+		yield url<>col and ' | <a href="%s">%s</a>' % (col, getattr(globals()[col], '__doc__', col)) or ' | %s' % getattr(globals()[col], '__doc__', col)
+		#yield url==col and ' | %s' % __all_name[__all__.index(col)] or ' | <a href="%s/%s">%s</a>' % (forum_url, col, __all_name[__all__.index(col)]
+	yield '<hr />'
+
+def footer():
+	'''论坛页脚'''
+
+	yield '\n</body></html>'
+
+def index(**kw):
+	'''论坛首页'''
+
+	yield ''.join(header(**kw))
+	yield '''本页是根据日常应用中的一些需求,将批量查询抽象为一个界面,可以一次查多个号码的相关信息,相当于营维系统导入查询的改进.
+	1.号码网格等基本资料查询
+	'''.replace('\n', '<br />\n')
+	yield '%s' % globals().keys()
+	yield '%s' % sys.modules[__name__]
+	yield 'name: %s ' % __name__
+	yield ''.join(footer())
+index.exposed = True
+
+def add_pro(num):
+	'''处理号码请求,1:在固定电话前面自动加'023-', 2:在宽带前面自动加"023-0" '''
+	num = num.strip()
+	if num.startswith('23'): num = '023-0' + num
+	if num[:2] not in ('13','15','18') and not num.startswith('023-'):
+		num = '023-' + num
+	return num
+
+def batch1(*k, **kw):
+	'''批量查询用户基本资料'''
+
+	t1 = time.time()
+	yield ''.join(header(url='batch1', **kw))
+	kw_n = my_tools.query_dict(**kw)
+	sql = '''select %s from %s a left join DIM_ZONE_area b on a.mkt_grid_id=b.mkt_grid_id left join dim_zone_comm c on a.com_grid_id=c.com_grid_id left join %s d on a.mkt_cust_code=d.mkt_cust_code left join dim_crm_product product on a.product_id=product.product_id
+
+	left join %s cust on a.cust_id=cust.cust_id where acc_nbr in (%s) 
+	and serv_num=1
+	;''' 
+	tbl_name = 'DS_CHN_PRD_SERV_'+cherrypy.session.get('fengongshi','33')
+	tbl_cust = 'DS_CHN_PRD_CUST_'+cherrypy.session.get('fengongshi','33')
+	tbl_cust_code = 'DS_PTY_CUST'
+	ymd = (datetime.datetime.now()+datetime.timedelta(days=-2)).strftime('_%Y%m%d')
+	fee_month = '_'+cherrypy.session.get('feemonth',ymd[1:7])
+	# 如果不是选取的当前月份,则采用月表,否则采取最近的日表数据
+	#print '--', fee_month, ymd[:7]
+	if fee_month == ymd[:7]:
+		tbl_name += ymd
+		tbl_cust += ymd
+		tbl_cust_code += ymd
+	else:
+		tbl_name += fee_month
+		tbl_cust += fee_month
+		tbl_cust_code += fee_month
+	sql = sql % ('%s', tbl_name, tbl_cust, tbl_cust_code, '%s')
+	yield '<table border=2 width=100%%><tr><td colspan=3>sql语句模板:%s</td>' % sql
+	acc_nbr = acc_nbr_query = map(add_pro, kw_n['acc_nbr'].splitlines())
+	acc_nbr = map(repr, acc_nbr)
+	if type(kw_n['dis_cols'])<>type([]):
+		kw_n['dis_cols'] = [kw_n['dis_cols']]
+	if 'rule_type' in kw_n['dis_cols']:
+		renling = u"000 非链路规则;001 交接箱;002 配线架;003 分线盒;004 CRM母局;005 GIS局站;006 小区编码;007 链路用户号段规则;008 CRM局站;009 受理工号;010 综合配线箱"
+		str_tmp = ' '.join([" when rule_type='%s' then '%s'" % tuple(i.split()) for i in renling.split(';')])
+		kw_n['dis_cols'][kw_n['dis_cols'].index('rule_type')] = "case %s end" % str_tmp 
+	if 'user_grp_type' in kw_n['dis_cols']:
+		renling = u"10 政企客户;20 家庭客户;30 个人客户;-99 战略客户类别不详"
+		str_tmp = ' '.join([" when user_grp_type='%s' then '%s'" % tuple(i.split()) for i in renling.split(';')])
+		kw_n['dis_cols'][kw_n['dis_cols'].index('user_grp_type')] = "case %s end" % str_tmp 
+	if len(acc_nbr) and kw_n['dis_cols']<>['']:
+		kw_n['dis_cols'] = ','.join(['acc_nbr']+kw_n['dis_cols'])
+		sql = sql % (kw_n['dis_cols'], ','.join(acc_nbr))
+		recs = dbapi.Table(_table=tbl_name, _sqlment = sql, _sqlment_values=[], _values_1=False)
+		dis_serial = map(lambda x: x not in recs.acc_nbr and -1 or recs.acc_nbr.index(x), acc_nbr_query)
+		kw_n['right'] = cgi.escape('\n'.join(map(lambda x: x<>-1 and '\t'.join(map(str,recs[x]._data[1:])) or ' ',dis_serial))).decode('utf-8')
+	yield '''<tr><td width="15%%" align="center"><form method="post" name=form2 >输入区域<br /><textarea name="acc_nbr" style="BBfloat:left;BBwidth:100%%;border:solid 3;margin:3;display:inline"" onfocus="document.form2.acc_nbr.select()">\n%(acc_nbr)s</textarea></td>''' % kw_n
+	dis_cols = ['acc_nbr', 'user_name', 'prod_addr', 'mkt_channel_name', 'mkt_grid_name', 'com_channel_name', 'com_grid_name', 'rule_type', 'jjx_code', 'fxh_code', 'sub_exch_id', 'product_name', 'down_velocity', 'a.resid_flag', 'a.mkt_cust_code', "user_grp_type", "contact_tel", "deputy_acc_nbr", "a.state", 'a.serv_state', 'a.serv_num', 'a.completed_date', 'billing_mode_id', 'cust.cust_name', 'cust.cust_address']
+	cols_name = '用户电话号码 用户名称 用户地址 营销线_营维部名称 营销线_网格名称 维护线_营维部名称 维护线_网格名称 维护线_链路认领规则名称 交接箱编码 分线盒 母局名称 产品四级名称 带宽速率_下行 政企属性 营销客户编码 用户战略分群 客户_联系电话 客户_代表号码 用户状态 设备状态 到达标志 竣工时间 计费模式 产权客户姓名 产权客户地址'.split()
+	td2 = SELECT(OPTION(cols_name,value=dis_cols,selected=kw.get('dis_cols','')),name="dis_cols", size=len(dis_cols), multiple=[True], style="display:block")
+	yield '<td width="15%%" align="center">选择输出字段<br />%s%s</td>' % (td2,INPUT(type="submit", value="提取"))
+	yield '''<td with="70%%" align="center">结果区域<br /><textarea name=right style="border:solid 3px;BBwidth:45%%;margin:3" readonly onblur="selectAll()">%(right)s</textarea></td>''' % kw_n
+	if kw_n['right'].strip():
+		yield '''<script language="javascript">document.form2.right.select(); document.form2.right.focus();var d = document.form2.right.value; window.clipboardData.setData("text", d);</script>'''
+	query_notice = '''查询说明:
+	1.输入号码格式问题, 如是8位固定电话或无号宽带,则自动加"023-", 若是"2370708080"这种宽带(在电子表格中前置0被省掉,则自动加"023-0",以符合营维系统的号码规则.
+	2.可以选择多个字段,用鼠标拖动选择,或者CTRL+鼠标点击单个选择,或者SHIFT+鼠标选择连续多个字段.
+	3.输入区域的号码必须每行一个.结果区域中的顺序与输入区域中的一致,若某号码没有结果结果,则显示为空行.查询完成后,右侧区域的字段是以TAB分隔,并已经自动复制到剪贴表(相当于全选并按了CTRL+C), 此时直接在电子表格中粘贴,即可为电子表格追加字段.
+	4.查询速度:单个号码在5秒左右,因重庆未对postgresql进行适当的索引,本来应该是毫秒级；对多个号码,经测试,在一次查询3600个号码时,费时59秒.不建议一次查询上万个号码.
+	5.若选取的月份不是当前月,则用该月的月表.若是当前月,则采取最新的日表.
+	6.若对查询字段有增加需求,或对此页面有其他建议,欢迎通过邮箱或电话提出.电话:707019430, 邮箱:yaoguangming@@cq.chinatelecom.com.cn'''.replace('\n', '<br />')
+	yield '%s' % TR(TD(query_notice, colspan=3))
+	yield '</table>'
+	yield '查询费时:%s' % (time.time()-t1)
+	yield ''.join(footer())
+batch1.exposed = True
+
+def batch21(*k, **kw):
+	'''ADSL共线群查询'''
+
+	return ''.join(batch2(rule1=1, rule2=2, rule3=90, group_type_id=1000, url='batch21', *k, **kw))
+batch21.exposed = True
+
+def batch22(*k, **kw):
+	'''IPTV(ADSL)群'''
+
+	return ''.join(batch2(rule1=1, rule2=1518, rule3=1519, group_type_id=2003, url='batch22', *k, **kw))
+batch22.exposed = True
+
+def batch2(*k, **kw):
+	'''ADSL共线群查询'''
+
+	t1 = time.time()
+	yield ''.join(header(**kw))
+	kw_n = my_tools.query_dict(**kw)
+	sql = ''' select %(dis_cols)s, a.group_id, gh_a.acc_nbr, adsl_a.acc_nbr, itv_a.acc_nbr from 
+	(select a.acc_nbr,a.user_name, a.prod_addr, a.jjx_code, a.sub_exch_id, a.down_velocity, a.mkt_cust_code, cust_grp_type, contact_tel, deputy_acc_nbr, b.group_id, a.serv_id, com_grid_name, com_channel_name, mkt_grid_name, mkt_channel_name, rule_type, product_name
+	from ds_chn_prd_serv_AREA_FEEMONTH a 
+	left join dm_prd_crm_service_grp_member b on a.serv_id=b.serv_id 
+	and b.member_role_id in (%(rule1)s, %(rule2)s, %(rule3)s) 
+	left join DM_PRD_SERVICE_GROUP c on b.group_id=c.group_id
+	left join dim_zone_area mkt on a.mkt_grid_id=mkt.mkt_grid_id
+	left join dim_zone_comm com on a.com_grid_id=com.com_grid_id
+	left join ds_chn_prd_cust_AREA_FEEMONTH cust on a.mkt_cust_code=cust.mkt_cust_code
+	left join dim_crm_product product on a.product_id=product.product_id
+	where a.acc_nbr in (%(acc_nbr_sql)s)
+	and c.group_type_id=%(group_type_id)s)  a
+	left join dm_prd_crm_service_grp_member gh on a.group_id=gh.group_id and gh.member_role_id=%(rule1)s
+	left join ds_chn_prd_serv_AREA_FEEMONTH gh_a on gh.serv_id=gh_a.serv_id
+	left join dm_prd_crm_service_grp_member adsl on a.group_id=adsl.group_id and adsl.member_role_id=%(rule2)s
+	left join ds_chn_prd_serv_AREA_FEEMONTH adsl_a on adsl.serv_id=adsl_a.serv_id
+	left join dm_prd_crm_service_grp_member itv on a.group_id=itv.group_id and itv.member_role_id=%(rule3)s
+	left join ds_chn_prd_serv_AREA_FEEMONTH itv_a on itv.serv_id=itv_a.serv_id ;'''
+	acc_nbr = acc_nbr_query = map(add_pro, kw_n['acc_nbr'].splitlines())
+	acc_nbr = map(repr, acc_nbr)
+	kw_n['acc_nbr_sql'] = ','.join(acc_nbr)
+	sql = sql.replace('AREA', cherrypy.session.get('fengongshi','33'))
+	ymd = (datetime.datetime.now()+datetime.timedelta(days=-2)).strftime('%Y%m%d')
+	sql = sql.replace('FEEMONTH', ymd)
+	yield '<table border=2 width=100%%><tr><td colspan=3>sql语句模板:%s</td>' % sql.replace('\n', '<br />')
+	if 'a.rule_type' in kw_n['dis_cols']:
+		renling = u"000 非链路规则;001 交接箱;002 配线架;003 分线盒;004 CRM母局;005 GIS局站;006 小区编码;007 链路用户号段规则;008 CRM局站;009 受理工号;010 综合配线箱"
+		str_tmp = ' '.join([" when a.rule_type='%s' then '%s'" % tuple(i.split()) for i in renling.split(';')])
+		kw_n['dis_cols'][kw_n['dis_cols'].index('a.rule_type')] = "case %s end" % str_tmp 
+	if len(acc_nbr):
+		if kw_n['dis_cols']=='':
+			kw_n['dis_cols'] = []
+		if type(kw_n['dis_cols'])<>type([]):
+			kw_n['dis_cols'] = [kw_n['dis_cols']]
+		kw_n['dis_cols'] = ','.join(['a.acc_nbr']+kw_n['dis_cols'])
+		sql = sql % kw_n
+		recs = dbapi.Table( _sqlment = sql, _sqlment_values=[], _values_1=False)
+		dis_serial = map(lambda x: x not in recs.acc_nbr and -1 or recs.acc_nbr.index(x), acc_nbr_query)
+		kw_n['right'] = cgi.escape('\n'.join(map(lambda x: x<>-1 and '\t'.join(map(str,recs[x]._data[1:])) or '\t',dis_serial))).decode('utf-8')
+	yield '''<tr><td width="20%%" align="center"><form method="post" name=form2 >输入区域<br /><textarea name="acc_nbr" style="BBfloat:left;BBwidth:100%%;border:solid 3;margin:3;display:inline"" onfocus="document.form2.acc_nbr.select()">\n%(acc_nbr)s</textarea></td>''' % kw_n
+	dis_cols = ['a.acc_nbr', 'a.user_name', 'a.prod_addr', 'a.mkt_channel_name', 'a.mkt_grid_name', 'a.com_channel_name', 'a.com_grid_name', 'a.rule_type', 'a.jjx_code', 'a.sub_exch_id', 'a.product_name', 'a.down_velocity', 'a.mkt_cust_code', "a.cust_grp_type", "a.contact_tel", "a.deputy_acc_nbr"]
+	cols_name = '用户电话号码 用户名称 用户地址 营销线_营维部名称 营销线_网格名称 维护线_营维部名称 维护线_网格名称 维护线_链路认领规则名称 交接箱编码 母局名称 产品四级名称 带宽速率_下行 营销客户编码 客户战略分群 客户_联系电话 客户_代表号码'.split()
+	td2 = SELECT(OPTION(cols_name,value=dis_cols,selected=kw.get('dis_cols','')),name="dis_cols", size=len(dis_cols), multiple=[True], style="display:block")
+	yield '<td width="15%%" align="center">选择输出字段<br />%s%s</td>' % (td2,INPUT(type="submit", value="提取"))
+	#yield '<td width="15%%" align="center">选择输出字段<br />%s</td>' % INPUT(type="submit", value="提取")
+	yield '''<td with="60%%" align="center">结果区域<br /><textarea name=right style="border:solid 3px;BBwidth:45%%;margin:3" readonly onblur="selectAll()">%(right)s</textarea></td>''' % kw_n
+	if kw_n['right'].strip():
+		yield '''<script language="javascript">document.form2.right.select(); document.form2.right.focus();var d = document.form2.right.value; window.clipboardData.setData("text", d);</script>''' 
+	query_notice = '''查询说明:
+	1.输入号码格式问题, 如是8位固定电话或无号宽带,则自动加"023-", 若是"2370708080"这种宽带(在电子表格中前置0被省掉,则自动加"023-0",以符合营维系统的号码规则.
+	2.可以选择多个字段,用鼠标拖动选择,或者CTRL+鼠标点击单个选择,或者SHIFT+鼠标选择连续多个字段.
+	3.输入区域的号码必须每行一个.结果区域中的顺序与输入区域中的一致,若某号码没有结果结果,则显示为空行.查询完成后,右侧区域的字段是以TAB分隔,并已经自动复制到剪贴表(相当于全选并按了CTRL+C), 此时直接在电子表格中粘贴,即可为电子表格追加字段.
+	4.查询速度:单个号码在5秒左右,因重庆未对postgresql进行适当的索引,本来应该是毫秒级；对多个号码,经测试,在一次查询3600个号码时,费时59秒.不建议一次查询上万个号码.
+	5.若对查询字段有增加需求,或对此页面有其他建议,欢迎通过邮箱或电话提出.电话:707019430, 邮箱:yaoguangming@@cq.chinatelecom.com.cn'''.replace('\n', '<br />')
+	yield '%s' % TR(TD(query_notice, colspan=3))
+	yield '</table>'
+	yield '查询费时:%s' % (time.time()-t1)
+	yield ''.join(footer())
+
+def batch3(*k, **kw):
+	'''根据合同号提电话号码'''
+
+	t1 = time.time()
+	yield ''.join(header(url='batch3', **kw))
+	kw_n = my_tools.query_dict(**kw)
+	sql = '''select acc_nbr from %s a where mkt_cust_code in (%s);''' 
+	tbl_name = 'DS_CHN_PRD_SERV_'+cherrypy.session.get('fengongshi','33')
+	ymd = (datetime.datetime.now()+datetime.timedelta(days=-2)).strftime('_%Y%m%d')
+	tbl_name += ymd
+	sql = sql % (tbl_name, '%s')
+	yield '<table border=2 width=100%%><tr><td colspan=3>sql语句模板:%s</td>' % sql
+	acc_nbr = acc_nbr_query = kw_n['acc_nbr'].splitlines()
+	acc_nbr = map(repr, acc_nbr)
+	if len(acc_nbr) and kw_n['dis_cols']<>['']:
+		#kw_n['dis_cols'] = ','.join(['acc_nbr']+kw_n['dis_cols'])
+		sql = sql % ','.join(acc_nbr)
+		recs = dbapi.Table(_table=tbl_name, _sqlment = sql, _sqlment_values=[], _values_1=False)
+		#dis_serial = map(lambda x: x not in recs.acc_nbr and -1 or recs.acc_nbr.index(x), acc_nbr_query)
+		#kw_n['right'] = cgi.escape('\n'.join(map(lambda x: x<>-1 and '\t'.join(map(str,recs[x]._data[1:])) or ' ',dis_serial))).decode('utf-8')
+		kw_n['right'] = cgi.escape('\n'.join(recs.acc_nbr))
+	yield '''<tr><td width="15%%" align="center"><form method="post" name=form2 >输入区域<br /><textarea name="acc_nbr" style="BBfloat:left;BBwidth:100%%;border:solid 3;margin:3;display:inline"" onfocus="document.form2.acc_nbr.select()">\n%(acc_nbr)s</textarea></td>''' % kw_n
+	dis_cols = [] #'acc_nbr', 'user_name', 'prod_addr', 'mkt_channel_name', 'mkt_grid_name', 'com_channel_name', 'com_grid_name', 'rule_type', 'jjx_code', 'sub_exch_id', 'product_name', 'down_velocity', 'a.resid_flag', 'a.mkt_cust_code', "cust_grp_type", "contact_tel", "deputy_acc_nbr"]
+	cols_name = ''.split() #'用户电话号码 用户名称 用户地址 营销线_营维部名称 营销线_网格名称 维护线_营维部名称 维护线_网格名称 维护线_链路认领规则名称 交接箱编码 母局名称 产品四级名称 带宽速率_下行 政企属性 营销客户编码 客户战略分群 客户_联系电话 客户_代表号码'.split()
+	td2 = SELECT(OPTION(cols_name,value=dis_cols,selected=kw.get('dis_cols','')),name="dis_cols", size=len(dis_cols), multiple=[True], style="display:block")
+	yield '<td width="15%%" align="center">选择输出字段<br />%s%s</td>' % (td2,INPUT(type="submit", value="提取"))
+	yield '''<td with="70%%" align="center">结果区域<br /><textarea name=right style="border:solid 3px;BBwidth:45%%;margin:3" readonly onblur="selectAll()">%(right)s</textarea></td>''' % kw_n
+	if kw_n['right'].strip():
+		yield '''<script language="javascript">document.form2.right.select(); document.form2.right.focus();var d = document.form2.right.value; window.clipboardData.setData("text", d);</script>''' % kw_n
+	query_notice = '''查询说明:
+	1.左边输入的是合同号,即营销客户编码.
+	2.右边出来的是多行号码,与营销客户并不一一对应.
+	4.查询速度:单个号码在5秒左右,因重庆未对postgresql进行适当的索引,本来应该是毫秒级；对多个号码,经测试,在一次查询3600个号码时,费时59秒.不建议一次查询上万个号码.
+	5.若对查询字段有增加需求,或对此页面有其他建议,欢迎通过邮箱或电话提出.电话:707019430, 邮箱:yaoguangming@@cq.chinatelecom.com.cn'''.replace('\n', '<br />')
+	yield '%s' % TR(TD(query_notice, colspan=3))
+	yield '</table>'
+	yield '查询费时:%s' % (time.time()-t1)
+	yield ''.join(footer())
+batch3.exposed = True
+
+def batch4(*k, **kw):
+	'''根据号码提商品包优惠商品'''
+
+	sql = ''' select a.serv_id, a.acc_nbr
+	  into temp tab_4m_all
+	  from %s a
+	 where acc_nbr in (%s);
+	select a.*, b.offer_name comp_name, b.offer_comp_id, c.offer_name from tab_4m_all a left join 
+	(select serv_id, pg_concat(t3.offer_name||',') offer_name, pg_concat(a.offer_comp_id||',') offer_comp_id from ds_prd_offer_comp_detail a
+	left join dim_crm_product_offer t3 on a.offer_comp_id=t3.offer_id --and t3.base_flag=1
+	-- and t3.offer_kind='C'
+	where serv_id in (select serv_id from tab_4m_all) 
+	--and t3.state='00A'
+	and t3.offer_kind not in ('0') group by 1)
+	b on a.serv_id=b.serv_id
+	left join (select serv_id, pg_concat(t3.offer_name||',') offer_name from ds_prd_offer_comp_detail a
+	left join dim_crm_product_offer t3 on a.prod_offer_id=t3.offer_id
+	-- and t3.offer_kind='C'
+	where serv_id in (select serv_id from tab_4m_all) 
+	--and t3.state='00A' 
+	and t3.offer_kind not in ('0') group by 1)
+	c on a.serv_id=c.serv_id
+
+	;
+	'''
+	t1 = time.time()
+	yield ''.join(header(url='batch4', **kw))
+	kw_n = my_tools.query_dict(**kw)
+	#sql = '''select acc_nbr from %s a where acc_nbr in (%s); ''' 
+	tbl_name = 'DS_CHN_PRD_SERV_'+cherrypy.session.get('fengongshi','33')
+	ymd = (datetime.datetime.now()+datetime.timedelta(days=-2)).strftime('_%Y%m%d')
+	tbl_name += ymd
+	sql = sql % (tbl_name, '%s')
+	yield '<table border=2 width=100%%><tr><td colspan=3>sql语句模板:%s</td>' % sql
+	#acc_nbr = acc_nbr_query = kw_n['acc_nbr'].splitlines()
+	acc_nbr = acc_nbr_query = map(add_pro, kw_n['acc_nbr'].splitlines())
+	acc_nbr = map(repr, acc_nbr)
+	if len(acc_nbr) and kw_n['dis_cols']<>['']:
+		#kw_n['dis_cols'] = ','.join(['acc_nbr']+kw_n['dis_cols'])
+		sql = sql % ','.join(acc_nbr)
+		recs = dbapi.Table(_table=tbl_name, _sqlment = sql, _sqlment_values=[], _values_1=False)
+		dis_serial = map(lambda x: x not in recs.acc_nbr and -1 or recs.acc_nbr.index(x), acc_nbr_query)
+		kw_n['right'] = cgi.escape('\n'.join(map(lambda x: x<>-1 and '\t'.join(map(str,recs[x]._data[1:])) or ' ',dis_serial))).decode('utf-8')
+		#kw_n['right'] = cgi.escape('\n'.join(recs.acc_nbr))
+	yield '''<tr><td width="15%%" align="center"><form method="post" name=form2 >输入区域<br /><textarea name="acc_nbr" style="BBfloat:left;BBwidth:100%%;border:solid 3;margin:3;display:inline"" onfocus="document.form2.acc_nbr.select()">\n%(acc_nbr)s</textarea></td>''' % kw_n
+	dis_cols = [] #'acc_nbr', 'user_name', 'prod_addr', 'mkt_channel_name', 'mkt_grid_name', 'com_channel_name', 'com_grid_name', 'rule_type', 'jjx_code', 'sub_exch_id', 'product_name', 'down_velocity', 'a.resid_flag', 'a.mkt_cust_code', "cust_grp_type", "contact_tel", "deputy_acc_nbr"]
+	cols_name = ''.split() #'用户电话号码 用户名称 用户地址 营销线_营维部名称 营销线_网格名称 维护线_营维部名称 维护线_网格名称 维护线_链路认领规则名称 交接箱编码 母局名称 产品四级名称 带宽速率_下行 政企属性 营销客户编码 客户战略分群 客户_联系电话 客户_代表号码'.split()
+	td2 = SELECT(OPTION(cols_name,value=dis_cols,selected=kw.get('dis_cols','')),name="dis_cols", size=len(dis_cols), multiple=[True], style="display:block")
+	yield '<td width="15%%" align="center">选择输出字段<br />%s%s</td>' % (td2,INPUT(type="submit", value="提取"))
+	yield '''<td with="70%%" align="center">结果区域<br /><textarea name=right style="border:solid 3px;BBwidth:45%%;margin:3" readonly onblur="selectAll()">%(right)s</textarea></td>''' % kw_n
+	if kw_n['right'].strip():
+		yield '''<script language="javascript">document.form2.right.select(); document.form2.right.focus();var d = document.form2.right.value; window.clipboardData.setData("text", d);</script>''' % kw_n
+	query_notice = '''查询说明:
+	1.左边输入的是合同号,即营销客户编码.
+	2.右边出来的是多行号码,与营销客户并不一一对应.
+	4.查询速度:单个号码在5秒左右,因重庆未对postgresql进行适当的索引,本来应该是毫秒级；对多个号码,经测试,在一次查询3600个号码时,费时59秒.不建议一次查询上万个号码.
+	5.若对查询字段有增加需求,或对此页面有其他建议,欢迎通过邮箱或电话提出.电话:707019430, 邮箱:yaoguangming@@cq.chinatelecom.com.cn'''.replace('\n', '<br />')
+	yield '%s' % TR(TD(query_notice, colspan=3))
+	yield '</table>'
+	yield '查询费时:%s' % (time.time()-t1)
+	yield ''.join(footer())
+batch4.exposed = True
+
+def batch4_base(*k, **kw):
+	'''提基础商品包'''
+
+	sql = ''' --关联目录维表, 取base_flag=1
+	drop table if exists tab_4m_all;
+	select a.serv_id, a.acc_nbr
+	  into temp tab_4m_all
+	  from %s a
+	 where acc_nbr in (%s);
+	select a.*, pg_concat( distinct c.offer_name||',') comp_name
+	--,pg_concat(c.offer_name||',') c_name
+	,pg_concat(distinct d.offer_comp_type_desc4||',') 四级套餐
+	from tab_4m_all a
+	left join ds_prd_offer_comp_detail b on a.serv_id=b.serv_id and b.prod_offer_inst_state='00A' 
+	left join dim_crm_product_offer c on b.offer_comp_id=c.offer_id
+	--and chh.base_flag=1
+	-- and t3.offer_kind='C'
+	--and t3.offer_kind not in ('0')
+	left join DIM_WD_OFFER_NEW_DIR_SECOND d on b.offer_comp_id=d.offer_comp_type_id6
+	where d.base_flag=1
+	--关联套餐目录维表
+	group by a.serv_id, a.acc_nbr
+	;
+	'''
+	t1 = time.time()
+	yield ''.join(header(url='batch4_base', **kw))
+	kw_n = my_tools.query_dict(**kw)
+	#sql = '''select acc_nbr from %s a where acc_nbr in (%s); ''' 
+	tbl_name = 'DS_CHN_PRD_SERV_'+cherrypy.session.get('fengongshi','33')
+	ymd = (datetime.datetime.now()+datetime.timedelta(days=-2)).strftime('_%Y%m%d')
+	tbl_name += ymd
+	sql = sql % (tbl_name, '%s')
+	yield '<table border=2 width=100%%><tr><td colspan=3>sql语句模板:%s</td>' % sql
+	#acc_nbr = acc_nbr_query = kw_n['acc_nbr'].splitlines()
+	acc_nbr = acc_nbr_query = map(add_pro, kw_n['acc_nbr'].splitlines())
+	acc_nbr = map(repr, acc_nbr)
+	if len(acc_nbr) and kw_n['dis_cols']<>['']:
+		#kw_n['dis_cols'] = ','.join(['acc_nbr']+kw_n['dis_cols'])
+		sql = sql % ','.join(acc_nbr)
+		recs = dbapi.Table(_table=tbl_name, _sqlment = sql, _sqlment_values=[], _values_1=False)
+		dis_serial = map(lambda x: x not in recs.acc_nbr and -1 or recs.acc_nbr.index(x), acc_nbr_query)
+		kw_n['right'] = cgi.escape('\n'.join(map(lambda x: x<>-1 and '\t'.join(map(str,recs[x]._data[1:])) or ' ',dis_serial))).decode('utf-8')
+		#kw_n['right'] = cgi.escape('\n'.join(recs.acc_nbr))
+	yield '''<tr><td width="15%%" align="center"><form method="post" name=form2 >输入区域<br /><textarea name="acc_nbr" style="BBfloat:left;BBwidth:100%%;border:solid 3;margin:3;display:inline"" onfocus="document.form2.acc_nbr.select()">\n%(acc_nbr)s</textarea></td>''' % kw_n
+	dis_cols = [] #'acc_nbr', 'user_name', 'prod_addr', 'mkt_channel_name', 'mkt_grid_name', 'com_channel_name', 'com_grid_name', 'rule_type', 'jjx_code', 'sub_exch_id', 'product_name', 'down_velocity', 'a.resid_flag', 'a.mkt_cust_code', "cust_grp_type", "contact_tel", "deputy_acc_nbr"]
+	cols_name = ''.split() #'用户电话号码 用户名称 用户地址 营销线_营维部名称 营销线_网格名称 维护线_营维部名称 维护线_网格名称 维护线_链路认领规则名称 交接箱编码 母局名称 产品四级名称 带宽速率_下行 政企属性 营销客户编码 客户战略分群 客户_联系电话 客户_代表号码'.split()
+	td2 = SELECT(OPTION(cols_name,value=dis_cols,selected=kw.get('dis_cols','')),name="dis_cols", size=len(dis_cols), multiple=[True], style="display:block")
+	yield '<td width="15%%" align="center">选择输出字段<br />%s%s</td>' % (td2,INPUT(type="submit", value="提取"))
+	yield '''<td with="70%%" align="center">结果区域<br /><textarea name=right style="border:solid 3px;BBwidth:45%%;margin:3" readonly onblur="selectAll()">%(right)s</textarea></td>''' % kw_n
+	if kw_n['right'].strip():
+		yield '''<script language="javascript">document.form2.right.select(); document.form2.right.focus();var d = document.form2.right.value; window.clipboardData.setData("text", d);</script>''' % kw_n
+	query_notice = '''查询说明:
+	1.左边输入的是合同号,即营销客户编码.
+	2.右边出来的是多行号码,与营销客户并不一一对应.
+	4.查询速度:单个号码在5秒左右,因重庆未对postgresql进行适当的索引,本来应该是毫秒级；对多个号码,经测试,在一次查询3600个号码时,费时59秒.不建议一次查询上万个号码.
+	5.若对查询字段有增加需求,或对此页面有其他建议,欢迎通过邮箱或电话提出.电话:707019430, 邮箱:yaoguangming@@cq.chinatelecom.com.cn'''.replace('\n', '<br />')
+	yield '%s' % TR(TD(query_notice, colspan=3))
+	yield '</table>'
+	yield '查询费时:%s' % (time.time()-t1)
+	yield ''.join(footer())
+batch4_base.exposed = True
+
+def batch5(*k, **kw):
+	'''根据号码提某月优惠后费用'''
+
+	sql = ''' select a.acc_nbr,sum(b.amount) amount 
+	from DS_CHN_PRD_SERV_AREA_FEEMONTH a
+	left join DS_ACT_ACCT_ITEM_FEEMONTH b on a.serv_id=b.serv_id
+	 where a.acc_nbr in (%s)
+	 group by 1;
+	'''
+	t1 = time.time()
+	yield ''.join(header(url='batch5', *k, **kw))
+	kw_n = my_tools.query_dict(**kw)
+	#tbl_name = 'DS_CHN_PRD_SERV_'+cherrypy.session.get('fengongshi','33')
+	#ymd = (datetime.datetime.now()+datetime.timedelta(days=-2)).strftime('_%Y%m%d')
+	#tbl_name += ymd
+	#sql = sql % (tbl_name, '%s')
+	sql = sql.replace('FEEMONTH', cherrypy.session.get('feemonth',''))
+	sql = sql.replace('AREA', cherrypy.session.get('fengongshi',''))
+	yield '<table border=2 width=100%%><tr><td colspan=3>sql语句模板:%s</td>' % sql
+	#acc_nbr = acc_nbr_query = kw_n['acc_nbr'].splitlines()
+	acc_nbr = acc_nbr_query = map(add_pro, kw_n['acc_nbr'].splitlines())
+	acc_nbr = map(repr, acc_nbr)
+	if len(acc_nbr) and kw_n['dis_cols']<>['']:
+		#kw_n['dis_cols'] = ','.join(['acc_nbr']+kw_n['dis_cols'])
+		sql = sql % ','.join(acc_nbr)
+		recs = dbapi.Table(_sqlment = sql, _sqlment_values=[], _values_1=False)
+		dis_serial = map(lambda x: x not in recs.acc_nbr and -1 or recs.acc_nbr.index(x), acc_nbr_query)
+		kw_n['right'] = cgi.escape('\n'.join(map(lambda x: x<>-1 and '\t'.join(map(str,recs[x]._data[1:])) or ' ',dis_serial))).decode('utf-8')
+		#kw_n['right'] = cgi.escape('\n'.join(recs.acc_nbr))
+	yield '''<tr><td width="15%%" align="center"><form method="post" name=form2 >输入区域<br /><textarea name="acc_nbr" style="BBfloat:left;BBwidth:100%%;border:solid 3;margin:3;display:inline"" onfocus="document.form2.acc_nbr.select()">\n%(acc_nbr)s</textarea></td>''' % kw_n
+	dis_cols = [] #'acc_nbr', 'user_name', 'prod_addr', 'mkt_channel_name', 'mkt_grid_name', 'com_channel_name', 'com_grid_name', 'rule_type', 'jjx_code', 'sub_exch_id', 'product_name', 'down_velocity', 'a.resid_flag', 'a.mkt_cust_code', "cust_grp_type", "contact_tel", "deputy_acc_nbr"]
+	cols_name = ''.split() #'用户电话号码 用户名称 用户地址 营销线_营维部名称 营销线_网格名称 维护线_营维部名称 维护线_网格名称 维护线_链路认领规则名称 交接箱编码 母局名称 产品四级名称 带宽速率_下行 政企属性 营销客户编码 客户战略分群 客户_联系电话 客户_代表号码'.split()
+	td2 = SELECT(OPTION(cols_name,value=dis_cols,selected=kw.get('dis_cols','')),name="dis_cols", size=len(dis_cols), multiple=[True], style="display:block")
+	yield '<td width="15%%" align="center">选择输出字段<br />%s%s</td>' % (td2,INPUT(type="submit", value="提取"))
+	yield '''<td with="70%%" align="center">结果区域<br /><textarea name=right style="border:solid 3px;BBwidth:45%%;margin:3" readonly onblur="selectAll()">%(right)s</textarea></td>''' % kw_n
+	if kw_n['right'].strip():
+		yield '''<script language="javascript">document.form2.right.select(); document.form2.right.focus();var d = document.form2.right.value; window.clipboardData.setData("text", d);</script>''' % kw_n
+	query_notice = '''查询说明:
+	1.左边输入的是电话号码,
+	2.右边出来的是费用, 一一对应.
+	4.查询速度:单个号码在5秒左右,因重庆未对postgresql进行适当的索引,本来应该是毫秒级；对多个号码,经测试,在一次查询3600个号码时,费时59秒.不建议一次查询上万个号码.
+	5.若对查询字段有增加需求,或对此页面有其他建议,欢迎通过邮箱或电话提出.电话:707019430, 邮箱:yaoguangming@@cq.chinatelecom.com.cn'''.replace('\n', '<br />')
+	yield '%s' % TR(TD(query_notice, colspan=3))
+	yield '</table>'
+	yield '查询费时:%s' % (time.time()-t1)
+	yield ''.join(footer())
+batch5.exposed = True
+
+def batch5_con(*k, **kw):
+	'''根据号码提某月合同号优惠后费用'''
+
+	sql = ''' select a.acc_nbr, a.mkt_cust_code,count(distinct b.acc_nbr), sum(c.amount) amount 
+	from ( select acc_nbr, mkt_cust_code from DS_CHN_PRD_SERV_AREA_FEEMONTH a where acc_nbr in (%s) ) a
+	left join ds_chn_prd_serv_AREA_FEEMONTH b on a.mkt_cust_code=b.mkt_cust_code
+	left join DS_ACT_ACCT_ITEM_FEEMONTH c on b.serv_id=c.serv_id
+	 group by a.acc_nbr, a.mkt_cust_code;
+	'''
+	t1 = time.time()
+	yield ''.join(header(url='batch5_con', *k, **kw))
+	kw_n = my_tools.query_dict(**kw)
+	#tbl_name = 'DS_CHN_PRD_SERV_'+cherrypy.session.get('fengongshi','33')
+	#ymd = (datetime.datetime.now()+datetime.timedelta(days=-2)).strftime('_%Y%m%d')
+	#tbl_name += ymd
+	#sql = sql % (tbl_name, '%s')
+	sql = sql.replace('FEEMONTH', cherrypy.session.get('feemonth',''))
+	sql = sql.replace('AREA', cherrypy.session.get('fengongshi',''))
+	yield '<table border=2 width=100%%><tr><td colspan=3>sql语句模板:%s</td>' % sql
+	#acc_nbr = acc_nbr_query = kw_n['acc_nbr'].splitlines()
+	acc_nbr = acc_nbr_query = map(add_pro, kw_n['acc_nbr'].splitlines())
+	acc_nbr = map(repr, acc_nbr)
+	if len(acc_nbr) and kw_n['dis_cols']<>['']:
+		#kw_n['dis_cols'] = ','.join(['acc_nbr']+kw_n['dis_cols'])
+		sql = sql % ','.join(acc_nbr)
+		recs = dbapi.Table(_sqlment = sql, _sqlment_values=[], _values_1=False)
+		dis_serial = map(lambda x: x not in recs.acc_nbr and -1 or recs.acc_nbr.index(x), acc_nbr_query)
+		kw_n['right'] = cgi.escape('\n'.join(map(lambda x: x<>-1 and '\t'.join(map(str,recs[x]._data[1:])) or ' ',dis_serial))).decode('utf-8')
+		#kw_n['right'] = cgi.escape('\n'.join(recs.acc_nbr))
+	yield '''<tr><td width="15%%" align="center"><form method="post" name=form2 >输入区域<br /><textarea name="acc_nbr" style="BBfloat:left;BBwidth:100%%;border:solid 3;margin:3;display:inline"" onfocus="document.form2.acc_nbr.select()">\n%(acc_nbr)s</textarea></td>''' % kw_n
+	dis_cols = [] #'acc_nbr', 'user_name', 'prod_addr', 'mkt_channel_name', 'mkt_grid_name', 'com_channel_name', 'com_grid_name', 'rule_type', 'jjx_code', 'sub_exch_id', 'product_name', 'down_velocity', 'a.resid_flag', 'a.mkt_cust_code', "cust_grp_type", "contact_tel", "deputy_acc_nbr"]
+	cols_name = ''.split() #'用户电话号码 用户名称 用户地址 营销线_营维部名称 营销线_网格名称 维护线_营维部名称 维护线_网格名称 维护线_链路认领规则名称 交接箱编码 母局名称 产品四级名称 带宽速率_下行 政企属性 营销客户编码 客户战略分群 客户_联系电话 客户_代表号码'.split()
+	td2 = SELECT(OPTION(cols_name,value=dis_cols,selected=kw.get('dis_cols','')),name="dis_cols", size=len(dis_cols), multiple=[True], style="display:block")
+	yield '<td width="15%%" align="center">选择输出字段<br />%s%s</td>' % (td2,INPUT(type="submit", value="提取"))
+	yield '''<td with="70%%" align="center">结果区域<br /><textarea name=right style="border:solid 3px;BBwidth:45%%;margin:3" readonly onblur="selectAll()">%(right)s</textarea></td>''' % kw_n
+	if kw_n['right'].strip():
+		yield '''<script language="javascript">document.form2.right.select(); document.form2.right.focus();var d = document.form2.right.value; window.clipboardData.setData("text", d);</script>''' % kw_n
+	query_notice = '''查询说明:
+	1.左边输入的是电话号码,
+	2.右边出来的是费用, 一一对应.
+	4.查询速度:单个号码在5秒左右,因重庆未对postgresql进行适当的索引,本来应该是毫秒级；对多个号码,经测试,在一次查询3600个号码时,费时59秒.不建议一次查询上万个号码.
+	5.若对查询字段有增加需求,或对此页面有其他建议,欢迎通过邮箱或电话提出.电话:707019430, 邮箱:yaoguangming@@cq.chinatelecom.com.cn'''.replace('\n', '<br />')
+	yield '%s' % TR(TD(query_notice, colspan=3))
+	yield '</table>'
+	yield '查询费时:%s' % (time.time()-t1)
+	yield ''.join(footer())
+batch5_con.exposed = True
+
+def batch6(*k, **kw):
+	'''根据合同号提某月优惠后费用'''
+
+	sql = ''' select a.mkt_cust_code,sum(b.amount) amount 
+	from DS_CHN_PRD_SERV_AREA_FEEMONTH a
+	left join DS_ACT_ACCT_ITEM_FEEMONTH b on a.serv_id=b.serv_id
+	 where a.mkt_cust_code in (%s)
+	 group by 1;
+	'''
+	t1 = time.time()
+	yield ''.join(header(url='batch6', *k, **kw))
+	kw_n = my_tools.query_dict(**kw)
+	#tbl_name = 'DS_CHN_PRD_SERV_'+cherrypy.session.get('fengongshi','33')
+	#ymd = (datetime.datetime.now()+datetime.timedelta(days=-2)).strftime('_%Y%m%d')
+	#tbl_name += ymd
+	#sql = sql % (tbl_name, '%s')
+	sql = sql.replace('FEEMONTH', cherrypy.session.get('feemonth',''))
+	sql = sql.replace('AREA', cherrypy.session.get('fengongshi',''))
+	yield '<table border=2 width=100%%><tr><td colspan=3>sql语句模板:%s</td>' % sql
+	#acc_nbr = acc_nbr_query = kw_n['acc_nbr'].splitlines()
+	acc_nbr = acc_nbr_query = map(lambda x: x.strip(), kw_n['acc_nbr'].splitlines())
+	acc_nbr = map(lambda x:repr(x), acc_nbr)
+	#print ','.join(acc_nbr)
+	#print map(len, acc_nbr)
+	if len(acc_nbr) and kw_n['dis_cols']<>['']:
+		#kw_n['dis_cols'] = ','.join(['acc_nbr']+kw_n['dis_cols'])
+		sql = sql % ','.join(acc_nbr)
+		recs = dbapi.Table(_sqlment = sql, _sqlment_values=[], _values_1=False)
+		dis_serial = map(lambda x: x not in recs.mkt_cust_code and -1 or recs.mkt_cust_code.index(x), acc_nbr_query)
+		kw_n['right'] = cgi.escape('\n'.join(map(lambda x: x<>-1 and '\t'.join(map(str,recs[x]._data[1:])) or ' ',dis_serial))).decode('utf-8')
+		#kw_n['right'] = cgi.escape('\n'.join(recs.mkt_cust_code))
+	yield '''<tr><td width="15%%" align="center"><form method="post" name=form2 >输入区域<br /><textarea name="acc_nbr" style="BBfloat:left;BBwidth:100%%;border:solid 3;margin:3;display:inline"" onfocus="document.form2.acc_nbr.select()">\n%(acc_nbr)s</textarea></td>''' % kw_n
+	dis_cols = [] #'acc_nbr', 'user_name', 'prod_addr', 'mkt_channel_name', 'mkt_grid_name', 'com_channel_name', 'com_grid_name', 'rule_type', 'jjx_code', 'sub_exch_id', 'product_name', 'down_velocity', 'a.resid_flag', 'a.mkt_cust_code', "cust_grp_type", "contact_tel", "deputy_acc_nbr"]
+	cols_name = ''.split() #'用户电话号码 用户名称 用户地址 营销线_营维部名称 营销线_网格名称 维护线_营维部名称 维护线_网格名称 维护线_链路认领规则名称 交接箱编码 母局名称 产品四级名称 带宽速率_下行 政企属性 营销客户编码 客户战略分群 客户_联系电话 客户_代表号码'.split()
+	td2 = SELECT(OPTION(cols_name,value=dis_cols,selected=kw.get('dis_cols','')),name="dis_cols", size=len(dis_cols), multiple=[True], style="display:block")
+	yield '<td width="15%%" align="center">选择输出字段<br />%s%s</td>' % (td2,INPUT(type="submit", value="提取"))
+	yield '''<td with="70%%" align="center">结果区域<br /><textarea name=right style="border:solid 3px;BBwidth:45%%;margin:3" readonly onblur="selectAll()">%(right)s</textarea></td>''' % kw_n
+	if kw_n['right'].strip():
+		yield '''<script language="javascript">document.form2.right.select(); document.form2.right.focus();var d = document.form2.right.value; window.clipboardData.setData("text", d);</script>''' % kw_n
+	query_notice = '''查询说明:
+	1.左边输入的是电话号码,
+	2.右边出来的是费用, 一一对应.
+	4.查询速度:单个号码在5秒左右,因重庆未对postgresql进行适当的索引,本来应该是毫秒级；对多个号码,经测试,在一次查询3600个号码时,费时59秒.不建议一次查询上万个号码.
+	5.若对查询字段有增加需求,或对此页面有其他建议,欢迎通过邮箱或电话提出.电话:707019430, 邮箱:yaoguangming@@cq.chinatelecom.com.cn'''.replace('\n', '<br />')
+	yield '%s' % TR(TD(query_notice, colspan=3))
+	yield '</table>'
+	yield '查询费时:%s' % (time.time()-t1)
+	yield ''.join(footer())
+batch6.exposed = True
+
+def batch4_c(*k, **kw):
+	'''提C网号码主优惠商品'''
+
+	sql = ''' select a.serv_id, a.acc_nbr
+	  into temp tab_4m_all
+	  from %s a
+	 where acc_nbr in (%s);
+	select a.*, b.offer_name comp_name,c.offer_name from tab_4m_all a left join 
+	(select serv_id, pg_concat(t3.offer_name||'|') offer_name from ds_prd_offer_comp_detail a
+	left join dim_crm_product_offer t3 on a.offer_comp_id=t3.offer_id
+	-- and t3.offer_kind='C'
+	where serv_id in (select serv_id from tab_4m_all) 
+	and t3.state='00A' and t3.offer_kind not in ('0') group by 1)
+	b on a.serv_id=b.serv_id
+	left join (select serv_id, pg_concat(t3.offer_name||'|') offer_name from ds_prd_offer_comp_detail a
+	left join dim_crm_product_offer t3 on a.prod_offer_id=t3.offer_id
+	-- and t3.offer_kind='C'
+	where serv_id in (select serv_id from tab_4m_all) 
+	and t3.state='00A' and t3.offer_kind not in ('0')
+	and t3.offer_name not in (%s) group by 1)
+	c on a.serv_id=c.serv_id
+
+	;
+	'''
+	t1 = time.time()
+	yield ''.join(header(url='batch4_c', **kw))
+	kw_n = my_tools.query_dict(**kw)
+	#sql = '''select acc_nbr from %s a where acc_nbr in (%s); ''' 
+	tbl_name = 'DS_CHN_PRD_SERV_'+cherrypy.session.get('fengongshi','33')
+	ymd = (datetime.datetime.now()+datetime.timedelta(days=-2)).strftime('_%Y%m%d')
+	tbl_name += ymd
+	sql = sql % (tbl_name, '%s', '%s')
+	yield '<table border=2 width=100%%><tr><td colspan=3>sql语句模板:%s</td>' % sql
+	c_n_file = os.path.join(os.path.dirname(__file__),'c_not.txt')
+	c_not = open(c_n_file).read().replace('|',' ').split()
+	c_not = list(set(c_not))
+	c_not = ','.join(map(repr, c_not))
+	sql = sql % ('%s', c_not)
+	#acc_nbr = acc_nbr_query = kw_n['acc_nbr'].splitlines()
+	acc_nbr = acc_nbr_query = map(add_pro, kw_n['acc_nbr'].splitlines())
+	acc_nbr = map(repr, acc_nbr)
+	if len(acc_nbr) and kw_n['dis_cols']<>['']:
+		#kw_n['dis_cols'] = ','.join(['acc_nbr']+kw_n['dis_cols'])
+		sql = sql % ','.join(acc_nbr)
+		recs = dbapi.Table(_table=tbl_name, _sqlment = sql, _sqlment_values=[], _values_1=False)
+		dis_serial = map(lambda x: x not in recs.acc_nbr and -1 or recs.acc_nbr.index(x), acc_nbr_query)
+		kw_n['right'] = cgi.escape('\n'.join(map(lambda x: x<>-1 and '\t'.join(map(str,recs[x]._data[1:])) or ' ',dis_serial))).decode('utf-8')
+		#kw_n['right'] = cgi.escape('\n'.join(recs.acc_nbr))
+	yield '''<tr><td width="15%%" align="center"><form method="post" name=form2 >输入区域<br /><textarea name="acc_nbr" style="BBfloat:left;BBwidth:100%%;border:solid 3;margin:3;display:inline"" onfocus="document.form2.acc_nbr.select()">\n%(acc_nbr)s</textarea></td>''' % kw_n
+	dis_cols = [] #'acc_nbr', 'user_name', 'prod_addr', 'mkt_channel_name', 'mkt_grid_name', 'com_channel_name', 'com_grid_name', 'rule_type', 'jjx_code', 'sub_exch_id', 'product_name', 'down_velocity', 'a.resid_flag', 'a.mkt_cust_code', "cust_grp_type", "contact_tel", "deputy_acc_nbr"]
+	cols_name = ''.split() #'用户电话号码 用户名称 用户地址 营销线_营维部名称 营销线_网格名称 维护线_营维部名称 维护线_网格名称 维护线_链路认领规则名称 交接箱编码 母局名称 产品四级名称 带宽速率_下行 政企属性 营销客户编码 客户战略分群 客户_联系电话 客户_代表号码'.split()
+	td2 = SELECT(OPTION(cols_name,value=dis_cols,selected=kw.get('dis_cols','')),name="dis_cols", size=len(dis_cols), multiple=[True], style="display:block")
+	yield '<td width="15%%" align="center">选择输出字段<br />%s%s</td>' % (td2,INPUT(type="submit", value="提取"))
+	yield '''<td with="70%%" align="center">结果区域<br /><textarea name=right style="border:solid 3px;BBwidth:45%%;margin:3" readonly onblur="selectAll()">%(right)s</textarea></td>''' % kw_n
+	if kw_n['right'].strip():
+		yield '''<script language="javascript">document.form2.right.select(); document.form2.right.focus();var d = document.form2.right.value; window.clipboardData.setData("text", d);</script>''' % kw_n
+	query_notice = '''查询说明:
+	1.左边输入的是合同号,即营销客户编码.
+	2.右边出来的是多行号码,与营销客户并不一一对应.
+	4.查询速度:单个号码在5秒左右,因重庆未对postgresql进行适当的索引,本来应该是毫秒级；对多个号码,经测试,在一次查询3600个号码时,费时59秒.不建议一次查询上万个号码.
+	5.若对查询字段有增加需求,或对此页面有其他建议,欢迎通过邮箱或电话提出.电话:707019430, 邮箱:yaoguangming@@cq.chinatelecom.com.cn'''.replace('\n', '<br />')
+	yield '%s' % TR(TD(query_notice, colspan=3))
+	yield '</table>'
+	yield '查询费时:%s' % (time.time()-t1)
+	yield ''.join(footer())
+batch4_c.exposed = True
+
+def batch7(*k, **kw):
+	'''根据号码提某月话单张数及费用'''
+
+	sql = ''' select calling_nbr acc_nbr, count(*) count
+	from DS_EVT_CALL_AREA_AREA7_FEEMONTH
+	where calling_nbr in (%s)
+	 group by 1;
+	'''
+	t1 = time.time()
+	yield ''.join(header(url='batch7', *k, **kw))
+	kw_n = my_tools.query_dict(**kw)
+	#tbl_name = 'DS_CHN_PRD_SERV_'+cherrypy.session.get('fengongshi','33')
+	#ymd = (datetime.datetime.now()+datetime.timedelta(days=-2)).strftime('_%Y%m%d')
+	#tbl_name += ymd
+	#sql = sql % (tbl_name, '%s')
+	sql = sql.replace('FEEMONTH', cherrypy.session.get('feemonth',''))
+	sql = sql.replace('AREA7', cherrypy.session.get('fengongshi',''))
+	yield '<table border=2 width=100%%><tr><td colspan=3>sql语句模板:%s</td>' % sql
+	#acc_nbr = acc_nbr_query = kw_n['acc_nbr'].splitlines()
+	acc_nbr = acc_nbr_query = map(lambda x: x.strip(), kw_n['acc_nbr'].splitlines())
+	acc_nbr = map(lambda x:repr(x), acc_nbr)
+	#print ','.join(acc_nbr)
+	#print map(len, acc_nbr)
+	if len(acc_nbr) and kw_n['dis_cols']<>['']:
+		#kw_n['dis_cols'] = ','.join(['acc_nbr']+kw_n['dis_cols'])
+		sql = sql % ','.join(acc_nbr)
+		recs = dbapi.Table(_sqlment = sql, _sqlment_values=[], _values_1=False)
+		dis_serial = map(lambda x: x not in recs.acc_nbr and -1 or recs.acc_nbr.index(x), acc_nbr_query)
+		kw_n['right'] = cgi.escape('\n'.join(map(lambda x: x<>-1 and '\t'.join(map(str,recs[x]._data[1:])) or ' ',dis_serial))).decode('utf-8')
+	yield '''<tr><td width="15%%" align="center"><form method="post" name=form2 >输入区域<br /><textarea name="acc_nbr" style="BBfloat:left;BBwidth:100%%;border:solid 3;margin:3;display:inline"" onfocus="document.form2.acc_nbr.select()">\n%(acc_nbr)s</textarea></td>''' % kw_n
+	dis_cols = [] #'acc_nbr', 'user_name', 'prod_addr', 'mkt_channel_name', 'mkt_grid_name', 'com_channel_name', 'com_grid_name', 'rule_type', 'jjx_code', 'sub_exch_id', 'product_name', 'down_velocity', 'a.resid_flag', 'a.mkt_cust_code', "cust_grp_type", "contact_tel", "deputy_acc_nbr"]
+	cols_name = ''.split() #'用户电话号码 用户名称 用户地址 营销线_营维部名称 营销线_网格名称 维护线_营维部名称 维护线_网格名称 维护线_链路认领规则名称 交接箱编码 母局名称 产品四级名称 带宽速率_下行 政企属性 营销客户编码 客户战略分群 客户_联系电话 客户_代表号码'.split()
+	td2 = SELECT(OPTION(cols_name,value=dis_cols,selected=kw.get('dis_cols','')),name="dis_cols", size=len(dis_cols), multiple=[True], style="display:block")
+	yield '<td width="15%%" align="center">选择输出字段<br />%s%s</td>' % (td2,INPUT(type="submit", value="提取"))
+	yield '''<td with="70%%" align="center">结果区域<br /><textarea name=right style="border:solid 3px;BBwidth:45%%;margin:3" readonly onblur="selectAll()">%(right)s</textarea></td>''' % kw_n
+	if kw_n['right'].strip():
+		yield '''<script language="javascript">document.form2.right.select(); document.form2.right.focus();var d = document.form2.right.value; window.clipboardData.setData("text", d);</script>''' % kw_n
+	query_notice = '''查询说明:
+	1.左边输入的是电话号码,
+	2.右边出来的是费用, 一一对应.
+	4.查询速度:单个号码在5秒左右,因重庆未对postgresql进行适当的索引,本来应该是毫秒级；对多个号码,经测试,在一次查询3600个号码时,费时59秒.不建议一次查询上万个号码.
+	5.若对查询字段有增加需求,或对此页面有其他建议,欢迎通过邮箱或电话提出.电话:707019430, 邮箱:yaoguangming@@cq.chinatelecom.com.cn'''.replace('\n', '<br />')
+	yield '%s' % TR(TD(query_notice, colspan=3))
+	yield '</table>'
+	yield '查询费时:%s' % (time.time()-t1)
+	yield ''.join(footer())
+batch7.exposed = True
+
+def batch8(*k, **kw):
+	'''根据合同号查资料'''
+
+	t1 = time.time()
+	yield ''.join(header(url='batch8', **kw))
+	kw_n = my_tools.query_dict(**kw)
+	sql = '''select %s from 
+	(select a.*, b.mkt_channel_name, b.mkt_grid_name
+	,db.com_channel_name, db.com_grid_name
+	from DS_CHN_PRD_CUST_{AREA}_{yyyymmdd} a
+	left join dim_zone_area b on a.mkt_grid_id=b.mkt_grid_id
+	left join dim_zone_comm db on a.deputy_com_grid_id=db.com_grid_id
+	where mkt_cust_code in (%s) 
+	) a
+	left join ds_chn_prd_serv_{AREA}_{yyyymmdd} b on a.mkt_cust_code=b.mkt_cust_code and b.product_id=102030001
+	left join ds_chn_prd_serv_{AREA}_{yyyymmdd} c on a.mkt_cust_code=c.mkt_cust_code and c.product_id=208511177
+	;''' 
+	tbl_name = 'DS_CHN_PRD_SERV_'+cherrypy.session.get('fengongshi','33')
+	tbl_cust = 'DS_CHN_PRD_CUST_'+cherrypy.session.get('fengongshi','33')
+	tbl_cust_code = 'DS_PTY_CUST'
+	ymd = (datetime.datetime.now()+datetime.timedelta(days=-2)).strftime('%Y%m%d')
+	tbl_name += ymd
+	tbl_cust += ymd
+	tbl_cust_code += ymd
+	#sql = sql % ('%s', tbl_name, tbl_cust, tbl_cust_code, '%s')
+	sql = sql.replace('{yyyymmdd}', ymd)
+	sql = sql.replace('{AREA}', cherrypy.session.get('fengongshi','33'))
+	yield '<table border=2 width=100%%><tr><td colspan=3>sql语句模板:%s</td>' % sql
+	#acc_nbr = acc_nbr_query = map(add_pro, kw_n['acc_nbr'].splitlines())
+	acc_nbr = acc_nbr_query = map(lambda x: x.strip(), kw_n['acc_nbr'].splitlines())
+	acc_nbr = map(repr, acc_nbr)
+	if type(kw_n['dis_cols'])<>type([]):
+		kw_n['dis_cols'] = [kw_n['dis_cols']]
+	if 'rule_type' in kw_n['dis_cols']:
+		renling = u"000 非链路规则;001 交接箱;002 配线架;003 分线盒;004 CRM母局;005 GIS局站;006 小区编码;007 链路用户号段规则;008 CRM局站;009 受理工号;010 综合配线箱"
+		str_tmp = ' '.join([" when rule_type='%s' then '%s'" % tuple(i.split()) for i in renling.split(';')])
+		kw_n['dis_cols'][kw_n['dis_cols'].index('rule_type')] = "case %s end" % str_tmp 
+	if 'user_grp_type' in kw_n['dis_cols']:
+		renling = u"10 政企客户;20 家庭客户;30 个人客户;-99 战略客户类别不详"
+		str_tmp = ' '.join([" when user_grp_type='%s' then '%s'" % tuple(i.split()) for i in renling.split(';')])
+		kw_n['dis_cols'][kw_n['dis_cols'].index('user_grp_type')] = "case %s end" % str_tmp 
+	if len(acc_nbr) and kw_n['dis_cols']<>['']:
+		kw_n['dis_cols'] = ','.join(['a.mkt_cust_code']+kw_n['dis_cols'])
+		sql = sql % (kw_n['dis_cols'], ','.join(acc_nbr))
+		recs = dbapi.Table(_table=tbl_name, _sqlment = sql, _sqlment_values=[], _values_1=False)
+		dis_serial = map(lambda x: x not in recs.mkt_cust_code and -1 or recs.mkt_cust_code.index(x), acc_nbr_query)
+		kw_n['right'] = cgi.escape('\n'.join(map(lambda x: x<>-1 and '\t'.join(map(str,recs[x]._data[1:])) or ' ',dis_serial))).decode('utf-8')
+	yield '''<tr><td width="15%%" align="center"><form method="post" name=form2 >输入区域<br /><textarea name="acc_nbr" style="BBfloat:left;BBwidth:100%%;border:solid 3;margin:3;display:inline"" onfocus="document.form2.acc_nbr.select()">\n%(acc_nbr)s</textarea></td>''' % kw_n
+	dis_cols = 'a.mkt_cust_code  a.mkt_cust_name  user_ad_arrive_num  b.acc_nbr adsl  c.acc_nbr itv  mkt_channel_name  mkt_grid_name  com_channel_name  com_grid_name'.split('  ')
+	cols_name = '营销客户编码 客户名称 ADS到达用户数 ADSL iTV 营销客户营维部 营销客户网格 代表号码维护营维部 代表号码维护网格'.split()
+	td2 = SELECT(OPTION(cols_name,value=dis_cols,selected=kw.get('dis_cols','')),name="dis_cols", size=len(dis_cols), multiple=[True], style="display:block")
+	yield '<td width="15%%" align="center">选择输出字段<br />%s%s</td>' % (td2,INPUT(type="submit", value="提取"))
+	yield '''<td with="70%%" align="center">结果区域<br /><textarea name=right style="border:solid 3px;BBwidth:45%%;margin:3" readonly onblur="selectAll()">%(right)s</textarea></td>''' % kw_n
+	if kw_n['right'].strip():
+		yield '''<script language="javascript">document.form2.right.select(); document.form2.right.focus();var d = document.form2.right.value; window.clipboardData.setData("text", d);</script>'''
+	query_notice = '''查询说明:
+	1.输入号码格式问题, 如是8位固定电话或无号宽带,则自动加"023-", 若是"2370708080"这种宽带(在电子表格中前置0被省掉,则自动加"023-0",以符合营维系统的号码规则.
+	2.可以选择多个字段,用鼠标拖动选择,或者CTRL+鼠标点击单个选择,或者SHIFT+鼠标选择连续多个字段.
+	3.输入区域的号码必须每行一个.结果区域中的顺序与输入区域中的一致,若某号码没有结果结果,则显示为空行.查询完成后,右侧区域的字段是以TAB分隔,并已经自动复制到剪贴表(相当于全选并按了CTRL+C), 此时直接在电子表格中粘贴,即可为电子表格追加字段.
+	4.查询速度:单个号码在5秒左右,因重庆未对postgresql进行适当的索引,本来应该是毫秒级；对多个号码,经测试,在一次查询3600个号码时,费时59秒.不建议一次查询上万个号码.
+	5.若对查询字段有增加需求,或对此页面有其他建议,欢迎通过邮箱或电话提出.电话:707019430, 邮箱:yaoguangming@@cq.chinatelecom.com.cn'''.replace('\n', '<br />')
+	yield '%s' % TR(TD(query_notice, colspan=3))
+	yield '</table>'
+	yield '查询费时:%s' % (time.time()-t1)
+	yield ''.join(footer())
+batch8.exposed = True
+
+def batch_cust(*k, **kw):
+	'''提同产权客户设备号码'''
+
+	t1 = time.time()
+	yield ''.join(header(url='batch_cust', **kw))
+	kw_n = my_tools.query_dict(**kw)
+	sql = '''--根据输入号码提其同产权客户下下宽带,手机号码
+	select a.*,b.acc_nbr adsl, c.acc_nbr cdma from 
+	(select acc_nbr,cust_id from  DS_CHN_PRD_SERV_COM_{AREA}_{yyyymmdd} where acc_nbr in (%s)
+	) a
+	left join ds_chn_prd_serv_com_{AREA}_{yyyymmdd} b on a.cust_id=b.cust_id and b.product_id=102030001  --adsl
+	left join ds_chn_prd_serv_com_{AREA}_{yyyymmdd} c on a.cust_id=c.cust_id and c.product_id=208511296  --cdma
+	;''' 
+	tbl_name = 'DS_CHN_PRD_SERV_'+cherrypy.session.get('fengongshi','33')
+	tbl_cust = 'DS_CHN_PRD_CUST_'+cherrypy.session.get('fengongshi','33')
+	tbl_cust_code = 'DS_PTY_CUST'
+	ymd = (datetime.datetime.now()+datetime.timedelta(days=-2)).strftime('%Y%m%d')
+	tbl_name += ymd
+	tbl_cust += ymd
+	tbl_cust_code += ymd
+	#sql = sql % ('%s', tbl_name, tbl_cust, tbl_cust_code, '%s')
+	sql = sql.replace('{yyyymmdd}', ymd)
+	sql = sql.replace('{AREA}', cherrypy.session.get('fengongshi','33'))
+	yield '<table border=2 width=100%%><tr><td colspan=3>sql语句模板:%s</td>' % sql
+	acc_nbr = acc_nbr_query = map(add_pro, kw_n['acc_nbr'].splitlines())
+	#acc_nbr = acc_nbr_query = map(lambda x: x.strip(), kw_n['acc_nbr'].splitlines())
+	acc_nbr = map(repr, acc_nbr)
+	if type(kw_n['dis_cols'])<>type([]):
+		kw_n['dis_cols'] = [kw_n['dis_cols']]
+	if 'rule_type' in kw_n['dis_cols']:
+		renling = u"000 非链路规则;001 交接箱;002 配线架;003 分线盒;004 CRM母局;005 GIS局站;006 小区编码;007 链路用户号段规则;008 CRM局站;009 受理工号;010 综合配线箱"
+		str_tmp = ' '.join([" when rule_type='%s' then '%s'" % tuple(i.split()) for i in renling.split(';')])
+		kw_n['dis_cols'][kw_n['dis_cols'].index('rule_type')] = "case %s end" % str_tmp 
+	if 'user_grp_type' in kw_n['dis_cols']:
+		renling = u"10 政企客户;20 家庭客户;30 个人客户;-99 战略客户类别不详"
+		str_tmp = ' '.join([" when user_grp_type='%s' then '%s'" % tuple(i.split()) for i in renling.split(';')])
+		kw_n['dis_cols'][kw_n['dis_cols'].index('user_grp_type')] = "case %s end" % str_tmp 
+	if len(acc_nbr): # and kw_n['dis_cols']<>['']:
+		kw_n['dis_cols'] = ','.join(['a.mkt_cust_code']+kw_n['dis_cols'])
+		#--sql = sql % (kw_n['dis_cols'], ','.join(acc_nbr))
+		sql = sql % (','.join(acc_nbr),)
+		recs = dbapi.Table(_table=tbl_name, _sqlment = sql, _sqlment_values=[], _values_1=False)
+		dis_serial = map(lambda x: x not in recs.acc_nbr and -1 or recs.acc_nbr.index(x), acc_nbr_query)
+		kw_n['right'] = cgi.escape('\n'.join(map(lambda x: x<>-1 and '\t'.join(map(str,recs[x]._data[1:])) or ' ',dis_serial))).decode('utf-8')
+	yield '''<tr><td width="15%%" align="center"><form method="post" name=form2 >输入区域<br /><textarea name="acc_nbr" style="BBfloat:left;BBwidth:100%%;border:solid 3;margin:3;display:inline"" onfocus="document.form2.acc_nbr.select()">\n%(acc_nbr)s</textarea></td>''' % kw_n
+	dis_cols = 'a.mkt_cust_code  a.mkt_cust_name  user_ad_arrive_num  b.acc_nbr adsl  c.acc_nbr itv  mkt_channel_name  mkt_grid_name  com_channel_name  com_grid_name'.split('  ')
+	cols_name = '营销客户编码 客户名称 ADS到达用户数 ADSL iTV 营销客户营维部 营销客户网格 代表号码维护营维部 代表号码维护网格'.split()
+	td2 = SELECT(OPTION(cols_name,value=dis_cols,selected=kw.get('dis_cols','')),name="dis_cols", size=len(dis_cols), multiple=[True], style="display:block")
+	yield '<td width="15%%" align="center">选择输出字段<br />%s%s</td>' % (td2,INPUT(type="submit", value="提取"))
+	yield '''<td with="70%%" align="center">结果区域<br /><textarea name=right style="border:solid 3px;BBwidth:45%%;margin:3" readonly onblur="selectAll()">%(right)s</textarea></td>''' % kw_n
+	if kw_n['right'].strip():
+		yield '''<script language="javascript">document.form2.right.select(); document.form2.right.focus();var d = document.form2.right.value; window.clipboardData.setData("text", d);</script>'''
+	query_notice = '''查询说明:
+	1.输入号码格式问题, 如是8位固定电话或无号宽带,则自动加"023-", 若是"2370708080"这种宽带(在电子表格中前置0被省掉,则自动加"023-0",以符合营维系统的号码规则.
+	2.可以选择多个字段,用鼠标拖动选择,或者CTRL+鼠标点击单个选择,或者SHIFT+鼠标选择连续多个字段.
+	3.输入区域的号码必须每行一个.结果区域中的顺序与输入区域中的一致,若某号码没有结果结果,则显示为空行.查询完成后,右侧区域的字段是以TAB分隔,并已经自动复制到剪贴表(相当于全选并按了CTRL+C), 此时直接在电子表格中粘贴,即可为电子表格追加字段.
+	4.查询速度:单个号码在5秒左右,因重庆未对postgresql进行适当的索引,本来应该是毫秒级；对多个号码,经测试,在一次查询3600个号码时,费时59秒.不建议一次查询上万个号码.
+	5.若对查询字段有增加需求,或对此页面有其他建议,欢迎通过邮箱或电话提出.电话:707019430, 邮箱:yaoguangming@@cq.chinatelecom.com.cn'''.replace('\n', '<br />')
+	yield '%s' % TR(TD(query_notice, colspan=3))
+	yield '</table>'
+	yield '查询费时:%s' % (time.time()-t1)
+	yield ''.join(footer())
+batch_cust.exposed = True
+
+def batch_uim(*k, **kw):
+	'''根据uim卡号查号码'''
+
+	t1 = time.time()
+	yield ''.join(header(url='batch_uim', **kw))
+	kw_n = my_tools.query_dict(**kw)
+	sql = '''select col1,acc_nbr from DM_PRD_PD_DYNAMIC where col1 in (%s);''' 
+	tbl_name = 'DS_CHN_PRD_SERV_'+cherrypy.session.get('fengongshi','33')
+	tbl_cust = 'DS_CHN_PRD_CUST_'+cherrypy.session.get('fengongshi','33')
+	tbl_cust_code = 'DS_PTY_CUST'
+	ymd = (datetime.datetime.now()+datetime.timedelta(days=-2)).strftime('_%Y%m%d')
+	tbl_name += ymd
+	tbl_cust += ymd
+	tbl_cust_code += ymd
+	#sql = sql % ('%s', tbl_name, tbl_cust, tbl_cust_code, '%s')
+	yield '<table border=2 width=100%%><tr><td colspan=3>sql语句模板:%s</td>' % sql
+	acc_nbr = acc_nbr_query = map(lambda x:x, kw_n['acc_nbr'].splitlines())
+	acc_nbr = map(repr, acc_nbr)
+	if type(kw_n['dis_cols'])<>type([]):
+		kw_n['dis_cols'] = [kw_n['dis_cols']]
+	if 'rule_type' in kw_n['dis_cols']:
+		renling = u"000 非链路规则;001 交接箱;002 配线架;003 分线盒;004 CRM母局;005 GIS局站;006 小区编码;007 链路用户号段规则;008 CRM局站;009 受理工号;010 综合配线箱"
+		str_tmp = ' '.join([" when rule_type='%s' then '%s'" % tuple(i.split()) for i in renling.split(';')])
+		kw_n['dis_cols'][kw_n['dis_cols'].index('rule_type')] = "case %s end" % str_tmp 
+	if 'user_grp_type' in kw_n['dis_cols']:
+		renling = u"10 政企客户;20 家庭客户;30 个人客户;-99 战略客户类别不详"
+		str_tmp = ' '.join([" when user_grp_type='%s' then '%s'" % tuple(i.split()) for i in renling.split(';')])
+		kw_n['dis_cols'][kw_n['dis_cols'].index('user_grp_type')] = "case %s end" % str_tmp 
+	if len(acc_nbr) and 1: #kw_n['dis_cols']<>['']:
+		kw_n['dis_cols'] = ','.join(['acc_nbr']+kw_n['dis_cols'])
+		sql = sql % (','.join(acc_nbr))
+		#print sql
+		recs = dbapi.Table(_table=tbl_name, _sqlment = sql, _sqlment_values=[], _values_1=False)
+		#print len(recs)
+		dis_serial = map(lambda x: x not in recs.col1 and -1 or recs.col1.index(x), acc_nbr_query)
+		#print dis_serial
+		kw_n['right'] = cgi.escape('\n'.join(map(lambda x: x<>-1 and '\t'.join(map(str,recs[x]._data[1:])) or ' ',dis_serial))).decode('utf-8')
+	yield '''<tr><td width="15%%" align="center"><form method="post" name=form2 >输入区域<br /><textarea name="acc_nbr" style="BBfloat:left;BBwidth:100%%;border:solid 3;margin:3;display:inline"" onfocus="document.form2.acc_nbr.select()">\n%(acc_nbr)s</textarea></td>''' % kw_n
+	dis_cols = []
+	cols_name = ''.split()
+	td2 = SELECT(OPTION(cols_name,value=dis_cols,selected=kw.get('dis_cols','')),name="dis_cols", size=len(dis_cols), multiple=[True], style="display:block")
+	yield '<td width="15%%" align="center">选择输出字段<br />%s%s</td>' % (td2,INPUT(type="submit", value="提取"))
+	yield '''<td with="70%%" align="center">结果区域<br /><textarea name=right style="border:solid 3px;BBwidth:45%%;margin:3" readonly onblur="selectAll()">%(right)s</textarea></td>''' % kw_n
+	if kw_n['right'].strip():
+		yield '''<script language="javascript">document.form2.right.select(); document.form2.right.focus();var d = document.form2.right.value; window.clipboardData.setData("text", d);</script>'''
+	query_notice = '''查询说明:
+	1.输入号码格式问题, 如是8位固定电话或无号宽带,则自动加"023-", 若是"2370708080"这种宽带(在电子表格中前置0被省掉,则自动加"023-0",以符合营维系统的号码规则.
+	2.可以选择多个字段,用鼠标拖动选择,或者CTRL+鼠标点击单个选择,或者SHIFT+鼠标选择连续多个字段.
+	3.输入区域的号码必须每行一个.结果区域中的顺序与输入区域中的一致,若某号码没有结果结果,则显示为空行.查询完成后,右侧区域的字段是以TAB分隔,并已经自动复制到剪贴表(相当于全选并按了CTRL+C), 此时直接在电子表格中粘贴,即可为电子表格追加字段.
+	4.查询速度:单个号码在5秒左右,因重庆未对postgresql进行适当的索引,本来应该是毫秒级；对多个号码,经测试,在一次查询3600个号码时,费时59秒.不建议一次查询上万个号码.
+	5.若对查询字段有增加需求,或对此页面有其他建议,欢迎通过邮箱或电话提出.电话:707019430, 邮箱:yaoguangming@@cq.chinatelecom.com.cn'''.replace('\n', '<br />')
+	yield '%s' % TR(TD(query_notice, colspan=3))
+	yield '</table>'
+	yield '查询费时:%s' % (time.time()-t1)
+	yield ''.join(footer())
+batch_uim.exposed = True
+
+def batch_byte(*k, **kw):
+	'''手机流量查询'''
+
+	t1 = time.time()
+	yield ''.join(header(url='batch_byte', **kw))
+	kw_n = my_tools.query_dict(**kw)
+	sql = '''select billing_nbr, count(*) count, sum(byte_in+byte_out)/(1024*1024) byte from %s where billing_nbr in (%s) and event_type_id in 
+	('60645', '60646', '60640', '60641', '60642', '60643', '60644', '60647', '60648', '60650', '60651', '60649', '60652', '60653', '60654', '60655', '60656', '60657',
+	'90175', '90176', '90170', '90171', '90172', '90173', '90174', '90177', '90178', '90180', '90181', '90179', '90182', '90183', '90184', '90185', '90186', '90187') group by 1;''' 
+	tbl_name = 'DS_CHN_PRD_SERV_'+cherrypy.session.get('fengongshi','33')
+	tbl_cust = 'DS_CHN_PRD_CUST_'+cherrypy.session.get('fengongshi','33')
+	tbl_cust_code = 'DS_PTY_CUST'
+	ymd = (datetime.datetime.now()+datetime.timedelta(days=-2)).strftime('_%Y%m%d')
+	tbl_name = 'DS_EVT_PS_AREA'
+	fee_month = cherrypy.session.get('feemonth','')
+	fengs_id = cherrypy.session.get('fengongshi','33')
+	#print ymd, fee_month
+	if fee_month and not ymd[1:].startswith(fee_month): #不是查询当前月
+		tbl_name += '_'
+		tbl_name += fengs_id
+		tbl_name += '_'
+		tbl_name += fee_month
+	#tbl_name += ymd
+	tbl_cust += ymd
+	tbl_cust_code += ymd
+	sql = sql % ( tbl_name, '%s')
+	yield '<table border=2 width=100%%><tr><td colspan=3>sql语句模板:%s</td>' % sql
+	acc_nbr = acc_nbr_query = map(lambda x:x, kw_n['acc_nbr'].splitlines())
+	acc_nbr = map(repr, acc_nbr)
+	if type(kw_n['dis_cols'])<>type([]):
+		kw_n['dis_cols'] = [kw_n['dis_cols']]
+	if 'rule_type' in kw_n['dis_cols']:
+		renling = u"000 非链路规则;001 交接箱;002 配线架;003 分线盒;004 CRM母局;005 GIS局站;006 小区编码;007 链路用户号段规则;008 CRM局站;009 受理工号;010 综合配线箱"
+		str_tmp = ' '.join([" when rule_type='%s' then '%s'" % tuple(i.split()) for i in renling.split(';')])
+		kw_n['dis_cols'][kw_n['dis_cols'].index('rule_type')] = "case %s end" % str_tmp 
+	if 'user_grp_type' in kw_n['dis_cols']:
+		renling = u"10 政企客户;20 家庭客户;30 个人客户;-99 战略客户类别不详"
+		str_tmp = ' '.join([" when user_grp_type='%s' then '%s'" % tuple(i.split()) for i in renling.split(';')])
+		kw_n['dis_cols'][kw_n['dis_cols'].index('user_grp_type')] = "case %s end" % str_tmp 
+	if len(acc_nbr) and 1: #kw_n['dis_cols']<>['']:
+		kw_n['dis_cols'] = ','.join(['acc_nbr']+kw_n['dis_cols'])
+		sql = sql % (','.join(acc_nbr))
+		#print sql
+		recs = dbapi.Table(_table=tbl_name, _sqlment = sql, _sqlment_values=[], _values_1=False)
+		#print len(recs)
+		dis_serial = map(lambda x: x not in recs.billing_nbr and -1 or recs.billing_nbr.index(x), acc_nbr_query)
+		#print dis_serial
+		kw_n['right'] = cgi.escape('\n'.join(map(lambda x: x<>-1 and '\t'.join(map(str,recs[x]._data[1:])) or ' ',dis_serial))).decode('utf-8')
+	yield '''<tr><td width="15%%" align="center"><form method="post" name=form2 >输入区域<br /><textarea name="acc_nbr" style="BBfloat:left;BBwidth:100%%;border:solid 3;margin:3;display:inline"" onfocus="document.form2.acc_nbr.select()">\n%(acc_nbr)s</textarea></td>''' % kw_n
+	dis_cols = []
+	cols_name = ''.split()
+	td2 = SELECT(OPTION(cols_name,value=dis_cols,selected=kw.get('dis_cols','')),name="dis_cols", size=len(dis_cols), multiple=[True], style="display:block")
+	yield '<td width="15%%" align="center">选择输出字段<br />%s%s</td>' % (td2,INPUT(type="submit", value="提取"))
+	yield '''<td with="70%%" align="center">结果区域<br /><textarea name=right style="border:solid 3px;BBwidth:45%%;margin:3" readonly onblur="selectAll()">%(right)s</textarea></td>''' % kw_n
+	if kw_n['right'].strip():
+		yield '''<script language="javascript">document.form2.right.select(); document.form2.right.focus();var d = document.form2.right.value; window.clipboardData.setData("text", d);</script>'''
+	query_notice = '''查询说明:
+	1.输入号码格式问题, 如是8位固定电话或无号宽带,则自动加"023-", 若是"2370708080"这种宽带(在电子表格中前置0被省掉,则自动加"023-0",以符合营维系统的号码规则.
+	2.可以选择多个字段,用鼠标拖动选择,或者CTRL+鼠标点击单个选择,或者SHIFT+鼠标选择连续多个字段.
+	3.输入区域的号码必须每行一个.结果区域中的顺序与输入区域中的一致,若某号码没有结果结果,则显示为空行.查询完成后,右侧区域的字段是以TAB分隔,并已经自动复制到剪贴表(相当于全选并按了CTRL+C), 此时直接在电子表格中粘贴,即可为电子表格追加字段.
+	4.查询速度:单个号码在5秒左右,因重庆未对postgresql进行适当的索引,本来应该是毫秒级；对多个号码,经测试,在一次查询3600个号码时,费时59秒.不建议一次查询上万个号码.
+	5.若对查询字段有增加需求,或对此页面有其他建议,欢迎通过邮箱或电话提出.电话:707019430, 邮箱:yaoguangming@@cq.chinatelecom.com.cn'''.replace('\n', '<br />')
+	yield '%s' % TR(TD(query_notice, colspan=3))
+	yield '</table>'
+	yield '查询费时:%s' % (time.time()-t1)
+	yield ''.join(footer())
+batch_byte.exposed = True
+
+def batch_esn(*k, **kw):
+	'''手机型号历史查询'''
+
+	t1 = time.time()
+	yield ''.join(header(url='batch_esn', **kw))
+	kw_n = my_tools.query_dict(**kw)
+	sql = '''select * from ds_evt_terminal_info_all_ry where acc_nbr in (%s)order by acc_nbr, register_time desc; '''
+	tbl_name = 'DS_CHN_PRD_SERV_'+cherrypy.session.get('fengongshi','33')
+	tbl_cust = 'DS_CHN_PRD_CUST_'+cherrypy.session.get('fengongshi','33')
+	tbl_cust_code = 'DS_PTY_CUST'
+	ymd = (datetime.datetime.now()+datetime.timedelta(days=-2)).strftime('_%Y%m%d')
+	tbl_name = 'DS_EVT_PS_AREA'
+	fee_month = cherrypy.session.get('feemonth','')
+	fengs_id = cherrypy.session.get('fengongshi','33')
+	#print ymd, fee_month
+	if fee_month and not ymd[1:].startswith(fee_month): #不是查询当前月
+		tbl_name += '_'
+		tbl_name += fengs_id
+		tbl_name += '_'
+		tbl_name += fee_month
+	#tbl_name += ymd
+	tbl_cust += ymd
+	tbl_cust_code += ymd
+	#sql = sql % ( tbl_name, '%s')
+	yield '<table border=2 width=100%%><tr><td colspan=3>sql语句模板:%s</td>' % sql
+	acc_nbr = acc_nbr_query = map(lambda x:x, kw_n['acc_nbr'].splitlines())
+	acc_nbr = map(repr, acc_nbr)
+	if type(kw_n['dis_cols'])<>type([]):
+		kw_n['dis_cols'] = [kw_n['dis_cols']]
+	if 'rule_type' in kw_n['dis_cols']:
+		renling = u"000 非链路规则;001 交接箱;002 配线架;003 分线盒;004 CRM母局;005 GIS局站;006 小区编码;007 链路用户号段规则;008 CRM局站;009 受理工号;010 综合配线箱"
+		str_tmp = ' '.join([" when rule_type='%s' then '%s'" % tuple(i.split()) for i in renling.split(';')])
+		kw_n['dis_cols'][kw_n['dis_cols'].index('rule_type')] = "case %s end" % str_tmp 
+	if 'user_grp_type' in kw_n['dis_cols']:
+		renling = u"10 政企客户;20 家庭客户;30 个人客户;-99 战略客户类别不详"
+		str_tmp = ' '.join([" when user_grp_type='%s' then '%s'" % tuple(i.split()) for i in renling.split(';')])
+		kw_n['dis_cols'][kw_n['dis_cols'].index('user_grp_type')] = "case %s end" % str_tmp 
+	if len(acc_nbr) and 1: #kw_n['dis_cols']<>['']:
+		kw_n['dis_cols'] = ','.join(['acc_nbr']+kw_n['dis_cols'])
+		sql = sql % (','.join(acc_nbr))
+		#print sql
+		recs = dbapi.Table(_table=tbl_name, _sqlment = sql, _sqlment_values=[], _values_1=False)
+		#print len(recs)
+		dis_serial = map(lambda x: x not in recs.acc_nbr and -1 or recs.acc_nbr.index(x), acc_nbr_query)
+		#print dis_serial
+		#kw_n['right'] = cgi.escape('\n'.join(map(lambda x: x<>-1 and '\t'.join(map(str,recs[x]._data[1:])) or ' ',dis_serial))).decode('utf-8')
+		kw_n['right'] = cgi.escape('\n'.join(map(lambda x: '\t'.join(map(str,x._data)), recs)))
+	yield '''<tr><td width="15%%" align="center"><form method="post" name=form2 >输入区域<br /><textarea name="acc_nbr" style="BBfloat:left;BBwidth:100%%;border:solid 3;margin:3;display:inline"" onfocus="document.form2.acc_nbr.select()">\n%(acc_nbr)s</textarea></td>''' % kw_n
+	dis_cols = []
+	cols_name = ''.split()
+	td2 = SELECT(OPTION(cols_name,value=dis_cols,selected=kw.get('dis_cols','')),name="dis_cols", size=len(dis_cols), multiple=[True], style="display:block")
+	yield '<td width="15%%" align="center">选择输出字段<br />%s%s</td>' % (td2,INPUT(type="submit", value="提取"))
+	yield '''<td with="70%%" align="center">结果区域<br /><textarea name=right style="border:solid 3px;BBwidth:45%%;margin:3" readonly onblur="selectAll()">%(right)s</textarea></td>''' % kw_n
+	if kw_n['right'].strip():
+		yield '''<script language="javascript">document.form2.right.select(); document.form2.right.focus();var d = document.form2.right.value; window.clipboardData.setData("text", d);</script>'''
+	query_notice = '''查询说明:
+	1.输入号码格式问题, 如是8位固定电话或无号宽带,则自动加"023-", 若是"2370708080"这种宽带(在电子表格中前置0被省掉,则自动加"023-0",以符合营维系统的号码规则.
+	2.可以选择多个字段,用鼠标拖动选择,或者CTRL+鼠标点击单个选择,或者SHIFT+鼠标选择连续多个字段.
+	3.输入区域的号码必须每行一个.结果区域中的顺序与输入区域中的一致,若某号码没有结果结果,则显示为空行.查询完成后,右侧区域的字段是以TAB分隔,并已经自动复制到剪贴表(相当于全选并按了CTRL+C), 此时直接在电子表格中粘贴,即可为电子表格追加字段.
+	4.查询速度:单个号码在5秒左右,因重庆未对postgresql进行适当的索引,本来应该是毫秒级；对多个号码,经测试,在一次查询3600个号码时,费时59秒.不建议一次查询上万个号码.
+	5.若对查询字段有增加需求,或对此页面有其他建议,欢迎通过邮箱或电话提出.电话:707019430, 邮箱:yaoguangming@@cq.chinatelecom.com.cn'''.replace('\n', '<br />')
+	yield '%s' % TR(TD(query_notice, colspan=3))
+	yield '</table>'
+	yield '查询费时:%s' % (time.time()-t1)
+	yield ''.join(footer())
+batch_esn.exposed = True
+
+def batch_esn_xxx(*k, **kw):
+	'''手机某月型号查询'''
+
+	t1 = time.time()
+	yield ''.join(header(url='batch_esn_xxx', **kw))
+	kw_n = my_tools.query_dict(**kw)
+	sql = '''--注意选择月份,选当前月份可以查最近的串号信息.
+	select b.acc_nbr,b.esn, b.factory, b.type, b.register_time, system
+	from (select acc_nbr,max(register_time) last_time from ds_evt_terminal_info_all_ry where acc_nbr in (%s) and register_time<'FEEMONTH' group by 1 order by acc_nbr) a
+	left join ds_evt_terminal_info_all_ry b on a.acc_nbr=b.acc_nbr and a.last_time=b.register_time
+	--left join ds_chn_prd_serv_{area}_{yyyymmdd} c on b.acc_nbr=c.acc_nbr 
+	left join (select * from dim_smart_phone_type_ry union select 'HW-HUAWEI C8600', 'Android 2.2') ry on b.type=ry.phone_type
+	--华为C8600在配置表中不正确,手工加上
+	;'''
+	tbl_name = 'DS_CHN_PRD_SERV_'+cherrypy.session.get('fengongshi','33')
+	tbl_cust = 'DS_CHN_PRD_CUST_'+cherrypy.session.get('fengongshi','33')
+	tbl_cust_code = 'DS_PTY_CUST'
+	sql = sql.replace('{area}', cherrypy.session.get('fengongshi','33'))
+	ymd = (datetime.datetime.now()+datetime.timedelta(days=-2)).strftime('%Y%m%d')
+	sql = sql.replace('{yyyymmdd}', ymd)
+	tbl_name = 'DS_EVT_PS_AREA'
+	fee_month = cherrypy.session.get('feemonth','')
+	fengs_id = cherrypy.session.get('fengongshi','33')
+	#print ymd, fee_month
+	if fee_month and not ymd.startswith(fee_month): #不是查询当前月
+		sql = sql.replace('LAST_DAY', fee_month)
+		tbl_name += '_'
+		tbl_name += fengs_id
+		tbl_name += '_'
+		tbl_name += fee_month
+	else:
+		sql = sql.replace('LAST_DAY', ymd)
+	# 要取截止feemonth月份底的串码,时间应为小于其次月的1日
+	if fee_month[-2:] == '12':
+		fee_month = str(int(fee_month)+89)
+	else:
+		fee_month = str(int(fee_month)+1)
+	fee_month = fee_month[:4]+'-'+fee_month[4:]+'-01'
+	sql = sql.replace('FEEMONTH', fee_month)
+	#tbl_name += ymd
+	tbl_cust += ymd
+	tbl_cust_code += ymd
+	#sql = sql % ( tbl_name, '%s')
+	yield '<table border=2 width=100%%><tr><td colspan=3>sql语句模板:%s</td>' % sql
+	acc_nbr = acc_nbr_query = map(lambda x:x, kw_n['acc_nbr'].splitlines())
+	acc_nbr = map(repr, acc_nbr)
+	if type(kw_n['dis_cols'])<>type([]):
+		kw_n['dis_cols'] = [kw_n['dis_cols']]
+	if 'rule_type' in kw_n['dis_cols']:
+		renling = u"000 非链路规则;001 交接箱;002 配线架;003 分线盒;004 CRM母局;005 GIS局站;006 小区编码;007 链路用户号段规则;008 CRM局站;009 受理工号;010 综合配线箱"
+		str_tmp = ' '.join([" when rule_type='%s' then '%s'" % tuple(i.split()) for i in renling.split(';')])
+		kw_n['dis_cols'][kw_n['dis_cols'].index('rule_type')] = "case %s end" % str_tmp 
+	if 'user_grp_type' in kw_n['dis_cols']:
+		renling = u"10 政企客户;20 家庭客户;30 个人客户;-99 战略客户类别不详"
+		str_tmp = ' '.join([" when user_grp_type='%s' then '%s'" % tuple(i.split()) for i in renling.split(';')])
+		kw_n['dis_cols'][kw_n['dis_cols'].index('user_grp_type')] = "case %s end" % str_tmp 
+	if len(acc_nbr) and 1: #kw_n['dis_cols']<>['']:
+		kw_n['dis_cols'] = ','.join(['acc_nbr']+kw_n['dis_cols'])
+		sql = sql % (','.join(acc_nbr))
+		#print sql
+		recs = dbapi.Table(_table=tbl_name, _sqlment = sql, _sqlment_values=[], _values_1=False)
+		#print len(recs)
+		dis_serial = map(lambda x: x not in recs.acc_nbr and -1 or recs.acc_nbr.index(x), acc_nbr_query)
+		#print dis_serial
+		kw_n['right'] = cgi.escape('\n'.join(map(lambda x: x<>-1 and '\t'.join(map(str,recs[x]._data[1:])) or ' ',dis_serial))).decode('utf-8')
+		#kw_n['right'] = cgi.escape('\n'.join(map(lambda x: '\t'.join(map(str,x._data)), recs)))
+	yield '''<tr><td width="15%%" align="center"><form method="post" name=form2 >输入区域<br /><textarea name="acc_nbr" style="BBfloat:left;BBwidth:100%%;border:solid 3;margin:3;display:inline"" onfocus="document.form2.acc_nbr.select()">\n%(acc_nbr)s</textarea></td>''' % kw_n
+	dis_cols = []
+	cols_name = ''.split()
+	td2 = SELECT(OPTION(cols_name,value=dis_cols,selected=kw.get('dis_cols','')),name="dis_cols", size=len(dis_cols), multiple=[True], style="display:block")
+	yield '<td width="15%%" align="center">选择输出字段<br />%s%s</td>' % (td2,INPUT(type="submit", value="提取"))
+	yield '''<td with="70%%" align="center">结果区域<br /><textarea name=right style="border:solid 3px;BBwidth:45%%;margin:3" readonly onblur="selectAll()">%(right)s</textarea></td>''' % kw_n
+	if kw_n['right'].strip():
+		yield '''<script language="javascript">document.form2.right.select(); document.form2.right.focus();var d = document.form2.right.value; window.clipboardData.setData("text", d);</script>'''
+	query_notice = '''查询说明:
+	1.输入号码格式问题, 如是8位固定电话或无号宽带,则自动加"023-", 若是"2370708080"这种宽带(在电子表格中前置0被省掉,则自动加"023-0",以符合营维系统的号码规则.
+	2.可以选择多个字段,用鼠标拖动选择,或者CTRL+鼠标点击单个选择,或者SHIFT+鼠标选择连续多个字段.
+	3.输入区域的号码必须每行一个.结果区域中的顺序与输入区域中的一致,若某号码没有结果结果,则显示为空行.查询完成后,右侧区域的字段是以TAB分隔,并已经自动复制到剪贴表(相当于全选并按了CTRL+C), 此时直接在电子表格中粘贴,即可为电子表格追加字段.
+	4.查询速度:单个号码在5秒左右,因重庆未对postgresql进行适当的索引,本来应该是毫秒级；对多个号码,经测试,在一次查询3600个号码时,费时59秒.不建议一次查询上万个号码.
+	5.若对查询字段有增加需求,或对此页面有其他建议,欢迎通过邮箱或电话提出.电话:707019430, 邮箱:yaoguangming@@cq.chinatelecom.com.cn'''.replace('\n', '<br />')
+	yield '%s' % TR(TD(query_notice, colspan=3))
+	yield '</table>'
+	yield '查询费时:%s' % (time.time()-t1)
+	yield ''.join(footer())
+batch_esn_xxx.exposed = True
+
+def default(*k, **kw):
+	'''默认处理方法'''
+
+	if len(k) >= 1 and k[0].decode('utf-8') in __all__:
+		yield ''.join(dis_sub(*k, **kw))
+	else:
+		yield '路径不存在!'
+		yield '%s' % str(k)
+		yield '%s' % chardet.detect(k[0]) #.decode('gb2312')
+default.exposed = True
+
+if __name__ == '__main__':
+	'''使本目录可以作为一个单独的cherrypy应用进行运行
+	需要注意的是,要做到此点,比如论坛中的交互url,全部要使用相对url'''
+	conf = os.path.join(os.path.dirname(__file__),  '__init__.conf')
+	Root = __import__(__file__[:-3])
+	cherrypy.quickstart(Root, config=conf)
+
+# $Log: __init__.py,v $
+# Revision 1.0  2011-10-08 22:54:04+08  administrator
+# Initial revision
+#
+@
+
+
+1.3
+log
+@���������������,�������Żݺ���Ʒ��,������C�������ŻݵĹ���.
+@
+text
+@d6 1
+a6 1
+__all__ = ['batch1', 'batch21', 'batch22', 'batch3', 'batch4', 'batch5', 'batch4_c']
+d27 5
+d74 5
+a78 1
+	sql = '''select %s from %s a left join DIM_ZONE_area b on a.mkt_grid_id=b.mkt_grid_id left join dim_zone_comm c on a.com_grid_id=c.com_grid_id left join %s d on a.mkt_cust_code=d.mkt_cust_code left join dim_crm_product product on a.product_id=product.product_id where acc_nbr in (%s);''' 
+d81 1
+d83 12
+a94 3
+	tbl_name += ymd
+	tbl_cust += ymd
+	sql = sql % ('%s', tbl_name, tbl_cust, '%s')
+d104 4
+d115 2
+a116 2
+	dis_cols = ['acc_nbr', 'user_name', 'prod_addr', 'mkt_channel_name', 'mkt_grid_name', 'com_channel_name', 'com_grid_name', 'rule_type', 'jjx_code', 'sub_exch_id', 'product_name', 'down_velocity', 'a.resid_flag', 'a.mkt_cust_code', "cust_grp_type", "contact_tel", "deputy_acc_nbr", "a.state", 'a.serv_state', 'a.serv_num', 'a.completed_time', 'billing_mode_id']
+	cols_name = '用户电话号码 用户名称 用户地址 营销线_营维部名称 营销线_网格名称 维护线_营维部名称 维护线_网格名称 维护线_链路认领规则名称 交接箱编码 母局名称 产品四级名称 带宽速率_下行 政企属性 营销客户编码 客户战略分群 客户_联系电话 客户_代表号码 用户状态 设备状态 到达标志 竣工时间 计费模式'.split()
+d127 2
+a128 1
+	5.若对查询字段有增加需求,或对此页面有其他建议,欢迎通过邮箱或电话提出.电话:707019430, 邮箱:yaoguangming@@cq.chinatelecom.com.cn'''.replace('\n', '<br />')
+d259 3
+a261 3
+	select a.*, b.offer_name comp_name,c.offer_name from tab_4m_all a left join 
+	(select serv_id, pg_concat(t3.offer_name||',') offer_name from ds_prd_offer_comp_detail a
+	left join dim_crm_product_offer t3 on a.offer_comp_id=t3.offer_id
+d264 2
+a265 1
+	and t3.state='00A' and t3.offer_kind not in ('0') group by 1)
+d271 2
+a272 1
+	and t3.state='00A' and t3.offer_kind not in ('0') group by 1)
+d315 62
+d378 1
+a378 1
+	'''根据号码某月优惠后费用'''
+d425 98
+d590 457
+d1050 1
+a1050 1
+	if len(k) >= 1 and k[0].decode('utf-8') in sub_list:
+@
+
+
+1.2
+log
+@1.�����˰���ͬ�����豸�����������ѯ
+2.�˵���ʾ,�Ե�ǰѡ�в˵�����ʾ����,�Ա�����ǰ�����ĸ��˵�
+3.��������Զ����Ƶ������幦��,�ڽ��Ϊ��(�����״ν���,��ִ�н��Ϊ��ʱ),������js�ű�,�Ա���ԭ�����������.
+@
+text
+@d3 1
+a3 1
+import sqlite3, os, chardet, MySQL, cherrypy, cgi, sys, xlrd, time, datetime, traceback, dbapi, config, my_tools
+d6 1
+a6 1
+__all__ = ['batch1', 'batch21', 'batch22', 'batch3']
+d14 6
+d25 5
+d67 1
+a67 1
+	yield ''.join(header(url='batch1'))
+d92 2
+a93 2
+	dis_cols = ['acc_nbr', 'user_name', 'prod_addr', 'mkt_channel_name', 'mkt_grid_name', 'com_channel_name', 'com_grid_name', 'rule_type', 'jjx_code', 'sub_exch_id', 'product_name', 'down_velocity', 'a.resid_flag', 'a.mkt_cust_code', "cust_grp_type", "contact_tel", "deputy_acc_nbr", "a.state", 'a.serv_state', 'a.serv_num']
+	cols_name = '用户电话号码 用户名称 用户地址 营销线_营维部名称 营销线_网格名称 维护线_营维部名称 维护线_网格名称 维护线_链路认领规则名称 交接箱编码 母局名称 产品四级名称 带宽速率_下行 政企属性 营销客户编码 客户战略分群 客户_联系电话 客户_代表号码 用户状态 设备状态 到达标志'.split()
+d192 1
+a192 1
+	yield ''.join(header(url='batch3'))
+d227 176
+@
+
+
+1.1
+log
+@<>
+@
+text
+@d6 1
+a6 1
+__all__ = ['batch1', 'batch21', 'batch22']
+d8 1
+a8 1
+def header(forum_url=".",**kw):
+d21 3
+a23 1
+		yield ' | <a href="%s">%s</a>' % (col, getattr(globals()[col],'__doc__',col))
+d56 1
+a56 1
+	yield ''.join(header())
+d81 2
+a82 2
+	dis_cols = ['acc_nbr', 'user_name', 'prod_addr', 'mkt_channel_name', 'mkt_grid_name', 'com_channel_name', 'com_grid_name', 'rule_type', 'jjx_code', 'sub_exch_id', 'product_name', 'down_velocity', 'a.mkt_cust_code', "cust_grp_type", "contact_tel", "deputy_acc_nbr"]
+	cols_name = '用户电话号码 用户名称 用户地址 营销线_营维部名称 营销线_网格名称 维护线_营维部名称 维护线_网格名称 维护线_链路认领规则名称 交接箱编码 母局名称 产品四级名称 带宽速率_下行 营销客户编码 客户战略分群 客户_联系电话 客户_代表号码'.split()
+d85 3
+a87 1
+	yield '''<td with="70%%" align="center">结果区域<br /><textarea name=right style="border:solid 3px;BBwidth:45%%;margin:3" readonly onblur="selectAll()">%(right)s</textarea></td><script language="javascript">document.form2.right.select(); document.form2.right.focus();var d = document.form2.right.value; window.clipboardData.setData("text", d);</script>''' % kw_n
+d103 1
+a103 1
+	return ''.join(batch2(rule1=1, rule2=2, rule3=90, group_type_id=1000, *k, **kw))
+d109 1
+a109 1
+	return ''.join(batch2(rule1=1, rule2=1518, rule3=1519, group_type_id=2003, *k, **kw))
+d142 1
+a142 2
+	yield '<table border=2 width=100%%><tr><td colspan=3>sql语句模板:%s</td>' % sql
+	print acc_nbr_query, 'acc_nbr_query'
+d163 3
+a165 1
+	yield '''<td with="60%%" align="center">结果区域<br /><textarea name=right style="border:solid 3px;BBwidth:45%%;margin:3" readonly onblur="selectAll()">%(right)s</textarea></td><script language="javascript">document.form2.right.select(); document.form2.right.focus();var d = document.form2.right.value; window.clipboardData.setData("text", d);</script>''' % kw_n
+d176 40
+@
+
+
+1.0
+log
+@Initial revision
+@
+text
+@d3 1
+a3 1
+import sqlite3, os, chardet, MySQL, cherrypy, cgi, sys, xlrd, time, datetime, traceback, dbapi
+d8 1
+a8 8
+class query_dict(dict):
+	def __getitem__(self, name):
+		try:
+			return dict.get(self, name, '').encode('utf-8','ignore')
+		except:
+			return dict.get(self, name, '')
+
+def header(forum_url="."):
+d11 3
+d15 4
+d29 1
+a29 1
+def index():
+d32 1
+a32 1
+	yield ''.join(header())
+d55 1
+a55 2
+	kw_n = query_dict()
+	kw_n.update(kw)
+d78 1
+a78 1
+	yield '''<tr><td width="15%%" align="center"><form method="post" name=form2 >输入区域<br /><textarea name="acc_nbr" style="BBfloat:left;BBwidth:100%%;border:solid 3;margin:3;display:inline"" onfocus="document.form2.acc_nbr.select()">%(acc_nbr)s</textarea></td>''' % kw_n
+d99 1
+a99 1
+	return ''.join(batch2('1,2', *k, **kw))
+d105 1
+a105 1
+	return ''.join(batch2('1518,1519', *k, **kw))
+d107 2
+a108 1
+def batch2(group_type, *k, **kw):
+d112 23
+a134 4
+	yield ''.join(header())
+	kw_n = query_dict()
+	kw_n.update(kw)
+	sql = '''select a.acc_nbr acc_nbr,aa.acc_nbr acc_nbr_2 from ds_chn_prd_serv_AREA_FEEMONTH a left join dm_prd_crm_service_grp_member b on a.serv_id=b.serv_id and b.member_role_id in (%s) left join dm_prd_crm_service_grp_member bb on b.group_id=bb.group_id and bb.member_role_id in (%s) and bb.member_role_id<>b.member_role_id  left join ds_chn_prd_serv_AREA_FEEMONTH aa on bb.serv_id=aa.serv_id where b.member_role_id<>bb.member_role_id and a.acc_nbr in (%s);''' % (group_type, group_type, '%s')
+d139 5
+a143 2
+	acc_nbr = acc_nbr_query = map(add_pro, kw_n['acc_nbr'].splitlines())
+	acc_nbr = map(repr, acc_nbr)
+d145 6
+a150 1
+		sql = sql % ','.join(acc_nbr)
+d153 8
+a160 5
+		print dis_serial
+		kw_n['right'] = cgi.escape('\n'.join(map(lambda x: x<>-1 and '\t'.join(map(str,recs[x]._data[1:])) or '',dis_serial))).decode('utf-8')
+	yield '''<tr><td width="15%%" align="center"><form method="post" name=form2 >输入区域<br /><textarea name="acc_nbr" style="BBfloat:left;BBwidth:100%%;border:solid 3;margin:3;display:inline"" onfocus="document.form2.acc_nbr.select()">%(acc_nbr)s</textarea></td>''' % kw_n
+	yield '<td width="15%%" align="center">选择输出字段<br />%s</td>' % INPUT(type="submit", value="提取")
+	yield '''<td with="70%%" align="center">结果区域<br /><textarea name=right style="border:solid 3px;BBwidth:45%%;margin:3" readonly onblur="selectAll()">%(right)s</textarea></td><script language="javascript">document.form2.right.select(); document.form2.right.focus();var d = document.form2.right.value; window.clipboardData.setData("text", d);</script>''' % kw_n
+@
